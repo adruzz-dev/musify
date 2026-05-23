@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
 // ─── API CONFIG ────────────────────────────────────────────────────────────────
-const SPOTIFY_CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID";
-const SPOTIFY_CLIENT_SECRET = "YOUR_SPOTIFY_CLIENT_SECRET";
+const SPOTIFY_CLIENT_ID = "3e5e5882ff8a49f5ad0ba92f7a8885a6";
+const SPOTIFY_CLIENT_SECRET = "81fc642a1f2f429f8803847e2e4e4445";
 const LASTFM_API_KEY = "YOUR_LASTFM_API_KEY";
 
 
@@ -55,11 +55,12 @@ const normalizeItunesTrack = (t) => ({
   src: t.previewUrl || null, // 30s preview MP3
 });
 
-// Spotify — needs CLIENT_ID + CLIENT_SECRET
+// Spotify — Client Credentials Flow
 let spotifyToken = null;
+let spotifyTokenExpiry = 0;
+
 const getSpotifyToken = async () => {
-  if (spotifyToken) return spotifyToken;
-  if (SPOTIFY_CLIENT_ID === "YOUR_SPOTIFY_CLIENT_ID") return null;
+  if (spotifyToken && Date.now() < spotifyTokenExpiry) return spotifyToken;
   try {
     const res = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
@@ -71,21 +72,66 @@ const getSpotifyToken = async () => {
     });
     const data = await res.json();
     spotifyToken = data.access_token;
+    spotifyTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
     return spotifyToken;
   } catch { return null; }
 };
 
-const getSpotifyFeaturedPlaylists = async () => {
+const spotifyGet = async (path) => {
   const token = await getSpotifyToken();
-  if (!token) return [];
+  if (!token) return null;
   try {
-    const res = await fetch("https://api.spotify.com/v1/browse/featured-playlists?limit=6", {
+    const res = await fetch(`https://api.spotify.com/v1${path}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = await res.json();
-    return data.playlists?.items || [];
-  } catch { return []; }
+    return res.json();
+  } catch { return null; }
 };
+
+const searchSpotify = async (query) => {
+  const data = await spotifyGet(`/search?q=${encodeURIComponent(query)}&type=track&limit=20`);
+  return (data?.tracks?.items || []).map(normalizeSpotifyTrack);
+};
+
+const getSpotifyFeaturedPlaylists = async () => {
+  const data = await spotifyGet("/browse/featured-playlists?limit=6");
+  return data?.playlists?.items || [];
+};
+
+const getSpotifyRecommendations = async (trackId, artistId, genreSeeds = []) => {
+  const seeds = trackId ? `seed_tracks=${trackId}` : `seed_artists=${artistId}`;
+  const data = await spotifyGet(`/recommendations?${seeds}&limit=10`);
+  return (data?.tracks || []).map(normalizeSpotifyTrack);
+};
+
+const getSpotifyNewReleases = async () => {
+  const data = await spotifyGet("/browse/new-releases?limit=12");
+  return (data?.albums?.items || []).map((a) => ({
+    id: `spotify-album-${a.id}`,
+    title: a.name,
+    artist: a.artists?.[0]?.name || "Unknown",
+    album: a.name,
+    duration: 30,
+    genre: "",
+    cover: a.images?.[0]?.url || "",
+    src: null,
+    spotifyUrl: a.external_urls?.spotify,
+  }));
+};
+
+const normalizeSpotifyTrack = (t) => ({
+  id: `spotify-${t.id}`,
+  title: t.name,
+  artist: t.artists?.[0]?.name || "Unknown",
+  album: t.album?.name || "",
+  duration: Math.floor((t.duration_ms || 30000) / 1000),
+  genre: "",
+  cover: t.album?.images?.[0]?.url || "",
+  src: t.preview_url || null, // 30s preview
+  spotifyId: t.id,
+  spotifyArtistId: t.artists?.[0]?.id,
+  spotifyUrl: t.external_urls?.spotify,
+});
 
 // Last.fm — needs API key
 const getArtistInfo = async (artistName) => {
@@ -377,7 +423,10 @@ export default function Musify() {
   const [featuredTracks, setFeaturedTracks] = useState([]);
   const [featuredName, setFeaturedName] = useState("Featured");
   const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
+  const [newReleases, setNewReleases] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [loadingHome, setLoadingHome] = useState(true);
+  const [searchSource, setSearchSource] = useState("spotify"); // "spotify" | "itunes"
 
   // Playlists (user's liked + spotify)
   const [playlists, setPlaylists] = useState([{ id: "liked-playlist", name: "Liked Songs", tracks: [] }]);
@@ -407,17 +456,28 @@ export default function Musify() {
     const loadHome = async () => {
       setLoadingHome(true);
       try {
-        const chart = await getItunesTopCharts();
-        // Top chart entries may lack previews; fetch full track data for top 5
-        const withPreviews = await searchItunes("top hits 2024");
-        const merged = withPreviews.length > 0 ? withPreviews : chart;
-        setFeaturedTracks(merged);
-        setFeaturedName("Top Charts");
+        // Try Spotify first, fallback to iTunes
+        const spotifyTracks = await searchSpotify("top hits");
+        if (spotifyTracks.length > 0) {
+          setFeaturedTracks(spotifyTracks);
+          setFeaturedName("Top Hits · Spotify");
+          setSearchSource("spotify");
+        } else {
+          const itunesTracks = await searchItunes("top hits 2024");
+          setFeaturedTracks(itunesTracks);
+          setFeaturedName("Top Charts · iTunes");
+          setSearchSource("itunes");
+        }
       } catch {
         setFeaturedTracks([]);
         setFeaturedName("Top Charts");
       }
-      // Load Spotify playlists if key set
+
+      // New releases from Spotify
+      const releases = await getSpotifyNewReleases();
+      setNewReleases(releases);
+
+      // Featured playlists
       const spLists = await getSpotifyFeaturedPlaylists();
       if (spLists.length > 0) {
         setSpotifyPlaylists(spLists);
@@ -435,7 +495,9 @@ export default function Musify() {
     clearTimeout(searchTimeout.current);
     setSearching(true);
     searchTimeout.current = setTimeout(async () => {
-      const results = await searchItunes(search);
+      // Try Spotify first, fallback to iTunes
+      let results = await searchSpotify(search);
+      if (!results || results.length === 0) results = await searchItunes(search);
       setSearchResults(results);
       setSearching(false);
     }, 400);
@@ -448,11 +510,22 @@ export default function Musify() {
       isPlaying ? audio.pause() : audio.play();
       setIsPlaying(!isPlaying);
     } else {
-      audio.src = track.src;
-      audio.play();
+      if (track.src) {
+        audio.src = track.src;
+        audio.play();
+        setIsPlaying(true);
+      } else {
+        // No preview — open Spotify if available
+        if (track.spotifyUrl) window.open(track.spotifyUrl, "_blank");
+        setIsPlaying(false);
+      }
       setCurrentTrack(track);
-      setIsPlaying(true);
       setProgress(0);
+      // Fetch recommendations for this track
+      if (track.spotifyId) {
+        getSpotifyRecommendations(track.spotifyId, track.spotifyArtistId)
+          .then(setRecommendations);
+      }
     }
   }, [currentTrack, isPlaying]);
 
@@ -521,7 +594,7 @@ export default function Musify() {
         {view === "home" && (
           <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4 }}>Good evening 🎵</h2>
-            <p style={{ color: "#555", fontSize: 13, marginBottom: 24 }}>Powered by iTunes • 30s previews</p>
+            <p style={{ color: "#555", fontSize: 13, marginBottom: 24 }}>Powered by Spotify + iTunes • 30s previews</p>
 
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "#f0f0f0" }}>🎵 {featuredName}</h3>
             {loadingHome ? (
@@ -540,13 +613,47 @@ export default function Musify() {
               </div>
             )}
 
+            {/* New Releases */}
+            {newReleases.length > 0 && (
+              <>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "32px 0 16px", color: "#f0f0f0" }}>🆕 New Releases</h3>
+                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
+                  {newReleases.map((t) => (
+                    <div key={t.id} onClick={() => t.spotifyUrl && window.open(t.spotifyUrl, "_blank")}
+                      style={{ background: "#1a1a22", borderRadius: 12, padding: 12, minWidth: 140, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
+                      <CoverArt cover={t.cover} size={116} title={t.title} />
+                      <div style={{ color: "#f0f0f0", fontWeight: 600, fontSize: 12, marginTop: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                      <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>{t.artist}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Recommendations */}
+            {recommendations.length > 0 && (
+              <>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "32px 0 16px", color: "#f0f0f0" }}>✨ Recommended for You</h3>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {recommendations.map((t, i) => (
+                    <TrackRow key={t.id} track={t} index={i} currentTrack={currentTrack} isPlaying={isPlaying}
+                      isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)}
+                      likedIds={likedIds} liked={likedIds.has(t.id)} onLike={() => handleLike(t.id)}
+                      isMobile={isMobile} onArtistClick={handleArtistClick} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Featured Playlists */}
             {spotifyPlaylists.length > 0 && (
               <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "32px 0 16px", color: "#f0f0f0" }}>🎧 Spotify Featured Playlists</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "32px 0 16px", color: "#f0f0f0" }}>🎧 Featured Playlists</h3>
                 <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
                   {spotifyPlaylists.map((p) => (
-                    <div key={p.id} style={{ background: "#1a1a22", borderRadius: 12, padding: 12, minWidth: 140, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
-                      {p.images?.[0]?.url && <img src={p.images[0].url} alt={p.name} style={{ width: "100%", borderRadius: 8, aspectRatio: "1", objectFit: "cover" }} />}
+                    <div key={p.id} onClick={() => window.open(p.external_urls?.spotify, "_blank")}
+                      style={{ background: "#1a1a22", borderRadius: 12, padding: 12, minWidth: 140, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
+                      {p.images?.[0]?.url && <img src={p.images[0].url} alt={p.name} style={{ width: 116, height: 116, borderRadius: 8, objectFit: "cover" }} />}
                       <div style={{ color: "#f0f0f0", fontWeight: 600, fontSize: 12, marginTop: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                     </div>
                   ))}
@@ -584,10 +691,10 @@ export default function Musify() {
         {view === "search" && (
           <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 16 }}>Search</h2>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search songs, artists... (iTunes)"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search songs, artists... (Spotify + iTunes)"
               style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "12px 20px", color: "#f0f0f0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
             <div style={{ marginTop: 20 }}>
-              {searching && <div style={{ color: "#555", fontSize: 13 }}>Searching iTunes...</div>}
+              {searching && <div style={{ color: "#555", fontSize: 13 }}>Searching Spotify + iTunes...</div>}
               {!searching && search && searchResults.length === 0 && <div style={{ color: "#555" }}>No results found.</div>}
               {searchResults.map((t, i) => (
                 <TrackRow key={t.id} track={t} index={i} {...sharedProps} isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)} liked={likedIds.has(t.id)} onLike={() => handleLike(t.id)} />

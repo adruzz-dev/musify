@@ -36,7 +36,7 @@ const googleProvider = new GoogleAuthProvider();
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN CONFIG — add admin emails here
 // ─────────────────────────────────────────────────────────────────────────────
-const ADMIN_EMAILS = ["admin@musify.com", "laviqueastore@email.com"]; // ← edit these
+const ADMIN_EMAILS = ["laviqueastore@email.com"]; // ← edit these
 
 const isAdmin = (user) => user && ADMIN_EMAILS.includes(user.email?.toLowerCase());
 

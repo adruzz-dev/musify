@@ -1,2 +1,11 @@
 import Musify from './Musify';
-export default function App(){ return <Musify />; }
+import { SpeedInsights } from '@vercel/speed-insights/react';
+
+export default function App(){ 
+  return (
+    <>
+      <Musify />
+      <SpeedInsights />
+    </>
+  );
+}

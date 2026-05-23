@@ -10,10 +10,25 @@ const FEATURED_PLAYLIST_ID = "1282516355"; // Top Hits playlist
 
 // ─── API HELPERS ───────────────────────────────────────────────────────────────
 
-// Deezer — no key needed, uses CORS proxy
+// Deezer — tries multiple CORS proxies in order
+const DEEZER_BASE = "https://api.deezer.com";
+const PROXIES = [
+  (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url) => `https://proxy.cors.sh/${url}`,
+];
+
 const deezerFetch = async (path) => {
-  const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(`https://api.deezer.com${path}`)}`);
-  return res.json();
+  const targetUrl = `${DEEZER_BASE}${path}`;
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy(targetUrl), { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data && !data.error) return data;
+    } catch { continue; }
+  }
+  return {};
 };
 
 const searchDeezer = async (query) => {

@@ -365,7 +365,7 @@ const PLAYLISTS = [
   {
     id: "pl-1",
     name: "Malayalam Melodies",
-    cover: "",        // optional cover image URL
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779449356/artworks-X7VgPpOQzk6r1htx-1zjCOA-t500x500_fhil3r.jpg",        // optional cover image URL
     songIds: ["1", "2", "3","4","5","6","7","8","9","10",],
   },
   // Add more playlists below this line...

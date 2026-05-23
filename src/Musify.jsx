@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
 // ─── API CONFIG ────────────────────────────────────────────────────────────────
-const SPOTIFY_CLIENT_ID = "3e5e5882ff8a49f5ad0ba92f7a8885a6";
-const SPOTIFY_CLIENT_SECRET = "81fc642a1f2f429f8803847e2e4e4445";
-const LASTFM_API_KEY = "YOUR_LASTFM_API_KEY";
+const SPOTIFY_CLIENT_ID = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
+const SPOTIFY_CLIENT_SECRET = process.env.REACT_APP_SPOTIFY_CLIENT_SECRET;
+const LASTFM_API_KEY = process.env.REACT_APP_LASTFM_API_KEY || "YOUR_LASTFM_API_KEY";
 
 
 // ─── API HELPERS ───────────────────────────────────────────────────────────────

@@ -1,30 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  sendEmailVerification,
-  onAuthStateChanged,
-  signOut,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signInWithPopup, GoogleAuthProvider, sendEmailVerification,
+  onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber,
+  updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential,
 } from "firebase/auth";
 import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-  collection,
-  getDocs,
-  orderBy,
-  query,
+  getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove,
+  collection, getDocs, orderBy, query, addDoc, deleteDoc,
 } from "firebase/firestore";
+import {
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL,
+} from "firebase/storage";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIREBASE CONFIG
@@ -42,14 +30,21 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN CONFIG — add admin emails here
+// ─────────────────────────────────────────────────────────────────────────────
+const ADMIN_EMAILS = ["admin@musify.com", "your@email.com"]; // ← edit these
+
+const isAdmin = (user) => user && ADMIN_EMAILS.includes(user.email?.toLowerCase());
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIRESTORE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 const getUserDoc = async (uid) => {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
+  const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? snap.data() : null;
 };
 
@@ -58,23 +53,22 @@ const createUserDoc = async (uid, data) => {
     name: data.name || "",
     email: data.email || "",
     phone: data.phone || "",
+    avatarUrl: "",
     playlists: [],
     likedSongs: [],
+    listeningStats: { totalPlays: 0, totalMinutes: 0, topArtist: "" },
     createdAt: Date.now(),
   });
 };
 
-const saveUserLiked = async (uid, likedSongs) => {
-  await updateDoc(doc(db, "users", uid), { likedSongs });
-};
+const saveUserLiked = async (uid, likedSongs) =>
+  updateDoc(doc(db, "users", uid), { likedSongs });
 
-const saveUserPlaylist = async (uid, playlist) => {
-  await updateDoc(doc(db, "users", uid), { playlists: arrayUnion(playlist) });
-};
+const saveUserPlaylist = async (uid, playlist) =>
+  updateDoc(doc(db, "users", uid), { playlists: arrayUnion(playlist) });
 
-const deleteUserPlaylist = async (uid, playlist) => {
-  await updateDoc(doc(db, "users", uid), { playlists: arrayRemove(playlist) });
-};
+const deleteUserPlaylist = async (uid, playlist) =>
+  updateDoc(doc(db, "users", uid), { playlists: arrayRemove(playlist) });
 
 const fetchSongs = async () => {
   const q = query(collection(db, "songs"), orderBy("order", "asc"));
@@ -93,8 +87,7 @@ const fetchPlaylists = async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 function formatTime(secs) {
   if (!secs || isNaN(secs)) return "0:00";
-  const m = Math.floor(secs / 60),
-    s = Math.floor(secs % 60);
+  const m = Math.floor(secs / 60), s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
@@ -120,53 +113,120 @@ function generateId() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AUDIO PLAYER HOOK
+// AUDIO PLAYER HOOK  (with crossfade & EQ support)
 // ─────────────────────────────────────────────────────────────────────────────
-function useAudioPlayer(onEnded) {
+function useAudioPlayer(onEnded, playbackSettings) {
   const audioRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const sourceRef = useRef(null);
+  const gainRef = useRef(null);
+  const eqBandsRef = useRef([]);
+  const crossfadeTimerRef = useRef(null);
+  const sleepTimerRef = useRef(null);
+
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
 
+  const settingsRef = useRef(playbackSettings);
+  useEffect(() => { settingsRef.current = playbackSettings; }, [playbackSettings]);
+
   useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.volume = volume;
-    audioRef.current.addEventListener("ended", () => onEnded?.());
-    audioRef.current.addEventListener("timeupdate", () =>
-      setProgress(audioRef.current.currentTime)
-    );
-    audioRef.current.addEventListener("loadedmetadata", () =>
-      setDuration(audioRef.current.duration)
-    );
+    const a = new Audio();
+    a.volume = volume;
+    audioRef.current = a;
+
+    a.addEventListener("ended", () => onEnded?.());
+    a.addEventListener("timeupdate", () => {
+      setProgress(a.currentTime);
+      // crossfade trigger
+      const s = settingsRef.current;
+      if (s.crossfade > 0 && a.duration && !isNaN(a.duration)) {
+        const remaining = a.duration - a.currentTime;
+        if (remaining <= s.crossfade && remaining > 0) {
+          const fade = remaining / s.crossfade;
+          if (gainRef.current) gainRef.current.gain.value = Math.max(0, fade) * volume;
+        }
+      }
+    });
+    a.addEventListener("loadedmetadata", () => setDuration(a.duration));
+
     return () => {
-      audioRef.current?.pause();
-      audioRef.current = null;
+      a.pause();
+      clearTimeout(crossfadeTimerRef.current);
+      clearTimeout(sleepTimerRef.current);
     };
+  }, []);
+
+  const setupWebAudio = useCallback(() => {
+    if (!audioCtxRef.current) {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const src = ctx.createMediaElementSource(audioRef.current);
+      sourceRef.current = src;
+      const gain = ctx.createGain();
+      gainRef.current = gain;
+      gain.gain.value = volume;
+
+      // 5-band EQ
+      const bands = [60, 250, 1000, 4000, 12000].map((freq) => {
+        const f = ctx.createBiquadFilter();
+        f.type = "peaking";
+        f.frequency.value = freq;
+        f.Q.value = 1;
+        f.gain.value = 0;
+        return f;
+      });
+      eqBandsRef.current = bands;
+      let prev = src;
+      bands.forEach((b) => { prev.connect(b); prev = b; });
+      prev.connect(gain);
+      gain.connect(ctx.destination);
+    }
+  }, []);
+
+  const applyEQ = useCallback((gains) => {
+    eqBandsRef.current.forEach((b, i) => {
+      if (gains[i] !== undefined) b.gain.value = gains[i];
+    });
   }, []);
 
   const load = useCallback((url) => {
     if (!audioRef.current) return;
+    if (audioCtxRef.current && audioCtxRef.current.state === "suspended")
+      audioCtxRef.current.resume();
+    if (gainRef.current) gainRef.current.gain.value = volume;
     audioRef.current.src = url;
     audioRef.current.load();
-    audioRef.current.play();
+    audioRef.current.play().then(() => {
+      if (!audioCtxRef.current) setupWebAudio();
+    }).catch(() => {});
+  }, [volume, setupWebAudio]);
+
+  const setSleepTimer = useCallback((minutes) => {
+    clearTimeout(sleepTimerRef.current);
+    if (minutes > 0) {
+      sleepTimerRef.current = setTimeout(() => {
+        audioRef.current?.pause();
+      }, minutes * 60 * 1000);
+    }
   }, []);
 
   return {
-    progress,
-    duration,
+    progress, duration,
     volume: Math.round(volume * 100),
     load,
-    play: () => audioRef.current?.play(),
+    play: () => { audioRef.current?.play(); if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume(); },
     pause: () => audioRef.current?.pause(),
-    seek: (r) => {
-      if (audioRef.current)
-        audioRef.current.currentTime = r * (audioRef.current.duration || 0);
-    },
+    seek: (r) => { if (audioRef.current) audioRef.current.currentTime = r * (audioRef.current.duration || 0); },
     setVol: (v) => {
       const val = v / 100;
       setVolume(val);
       if (audioRef.current) audioRef.current.volume = val;
+      if (gainRef.current) gainRef.current.gain.value = val;
     },
+    applyEQ,
+    setSleepTimer,
   };
 }
 
@@ -174,44 +234,12 @@ function useAudioPlayer(onEnded) {
 // COVER ART
 // ─────────────────────────────────────────────────────────────────────────────
 function CoverArt({ cover, size = 48, title, radius = 8 }) {
-  const initials =
-    title
-      ?.split(" ")
-      .map((w) => w[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "♪";
+  const initials = title?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "♪";
   const sz = typeof size === "number" ? size : "100%";
   return cover ? (
-    <img
-      src={cover}
-      alt={title}
-      style={{
-        width: sz,
-        height: sz,
-        borderRadius: radius,
-        objectFit: "cover",
-        flexShrink: 0,
-        display: "block",
-      }}
-    />
+    <img src={cover} alt={title} style={{ width: sz, height: sz, borderRadius: radius, objectFit: "cover", flexShrink: 0, display: "block" }} />
   ) : (
-    <div
-      style={{
-        width: sz,
-        height: sz,
-        borderRadius: radius,
-        flexShrink: 0,
-        background: "linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: typeof size === "number" ? Math.max(10, size * 0.28) : 14,
-        fontWeight: 800,
-        color: "rgba(255,255,255,0.8)",
-        letterSpacing: 1,
-      }}
-    >
+    <div style={{ width: sz, height: sz, borderRadius: radius, flexShrink: 0, background: "linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: typeof size === "number" ? Math.max(10, size * 0.28) : 14, fontWeight: 800, color: "rgba(255,255,255,0.8)", letterSpacing: 1 }}>
       {initials}
     </div>
   );
@@ -220,41 +248,29 @@ function CoverArt({ cover, size = 48, title, radius = 8 }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER BAR
 // ─────────────────────────────────────────────────────────────────────────────
-function PlayerBar({
-  track, isPlaying, onToggle, progress, duration, onSeek,
-  onNext, onPrev, volume, onVolume, liked, onLike, isMobile,
-}) {
+function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle }) {
   const pct = `${(progress / (duration || 1)) * 100}%`;
   const bar = (
-    <div
-      onClick={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        onSeek((e.clientX - r.left) / r.width);
-      }}
-      style={{
-        flex: 1, height: isMobile ? 3 : 4,
-        background: "rgba(255,255,255,0.1)", borderRadius: 2, cursor: "pointer",
-      }}
-    >
-      <div
-        style={{
-          width: pct, height: "100%", background: "#e8435a",
-          borderRadius: 2, transition: "width 0.2s",
-        }}
-      />
+    <div onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onSeek((e.clientX - r.left) / r.width); }}
+      style={{ flex: 1, height: isMobile ? 3 : 4, background: "rgba(255,255,255,0.1)", borderRadius: 2, cursor: "pointer" }}>
+      <div style={{ width: pct, height: "100%", background: "#e8435a", borderRadius: 2, transition: "width 0.2s" }} />
     </div>
   );
+
+  const repeatIcon = repeat === "one" ? "🔂" : repeat === "all" ? "🔁" : "🔁";
+  const repeatStyle = { opacity: repeat !== "off" ? 1 : 0.35 };
+
   const controls = (
-    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 14 : 20 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 18 }}>
+      <button onClick={onShuffleToggle} style={{ background: "none", border: "none", cursor: "pointer", color: shuffle ? "#e8435a" : "#555", fontSize: 13, padding: 4 }}>🔀</button>
       <button onClick={onPrev} style={{ background: "none", border: "none", cursor: "pointer", color: "#777", fontSize: isMobile ? 16 : 18, padding: 4 }}>⏮</button>
-      <button onClick={onToggle} style={{
-        width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%",
-        background: "#e8435a", border: "none", cursor: "pointer", color: "#fff",
-        fontSize: isMobile ? 13 : 15, display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+      <button onClick={onToggle} style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%", background: "#e8435a", border: "none", cursor: "pointer", color: "#fff", fontSize: isMobile ? 13 : 15, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {isPlaying ? "⏸" : "▶"}
       </button>
       <button onClick={onNext} style={{ background: "none", border: "none", cursor: "pointer", color: "#777", fontSize: isMobile ? 16 : 18, padding: 4 }}>⏭</button>
+      <button onClick={onRepeatToggle} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 4, ...repeatStyle }}>
+        {repeat === "one" ? "🔂" : "🔁"}
+      </button>
     </div>
   );
 
@@ -309,12 +325,7 @@ function PlayerBar({
 // ─────────────────────────────────────────────────────────────────────────────
 function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist, setSelectedPlaylist, user, onLogout }) {
   const nav = (id, label, icon) => (
-    <button key={id} onClick={() => setView(id)} style={{
-      display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
-      background: view === id ? "rgba(232,67,90,0.13)" : "none",
-      border: "none", borderRadius: 8, cursor: "pointer", padding: "9px 14px",
-      color: view === id ? "#e8435a" : "#777", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
-    }}>
+    <button key={id} onClick={() => setView(id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: view === id ? "rgba(232,67,90,0.13)" : "none", border: "none", borderRadius: 8, cursor: "pointer", padding: "9px 14px", color: view === id ? "#e8435a" : "#777", fontFamily: "inherit", fontSize: 13, fontWeight: 600 }}>
       <span style={{ fontSize: 15 }}>{icon}</span> {label}
     </button>
   );
@@ -325,17 +336,15 @@ function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist,
       {nav("library", "Your Library", "📚")}
       {nav("liked", "Liked Songs", "♥")}
       {nav("search", "Search", "🔍")}
+      {nav("profile", "Profile", "👤")}
+      {nav("settings", "Settings", "⚙️")}
+      {isAdmin(user) && nav("admin", "Admin Panel", "🛡️")}
 
       {allPlaylists.length > 0 && (
         <>
           <div style={{ margin: "14px 0 6px", paddingLeft: 14, color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>PLAYLISTS</div>
           {allPlaylists.map((pl) => (
-            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }} style={{
-              background: view === "playlist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none",
-              border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px",
-              color: view === "playlist" && selectedPlaylist === pl.id ? "#ccc" : "#666",
-              fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left",
-            }}>
+            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }} style={{ background: view === "playlist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none", border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px", color: view === "playlist" && selectedPlaylist === pl.id ? "#ccc" : "#666", fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left" }}>
               📋 {pl.name}
             </button>
           ))}
@@ -346,12 +355,7 @@ function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist,
         <>
           <div style={{ margin: "14px 0 6px", paddingLeft: 14, color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>MY PLAYLISTS</div>
           {userPlaylists.map((pl) => (
-            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }} style={{
-              background: view === "userplaylist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none",
-              border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px",
-              color: view === "userplaylist" && selectedPlaylist === pl.id ? "#ccc" : "#666",
-              fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left",
-            }}>
+            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }} style={{ background: view === "userplaylist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none", border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px", color: view === "userplaylist" && selectedPlaylist === pl.id ? "#ccc" : "#666", fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left" }}>
               🎵 {pl.name}
             </button>
           ))}
@@ -360,9 +364,7 @@ function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist,
 
       <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ paddingLeft: 14, color: "#555", fontSize: 11, marginBottom: 8 }}>👤 {user?.displayName || user?.email || user?.phoneNumber}</div>
-        <button onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontFamily: "inherit", fontSize: 12, padding: "8px 14px", width: "100%", textAlign: "left" }}>
-          🚪 Logout
-        </button>
+        <button onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontFamily: "inherit", fontSize: 12, padding: "8px 14px", width: "100%", textAlign: "left" }}>🚪 Logout</button>
       </div>
     </div>
   );
@@ -371,21 +373,18 @@ function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist,
 // ─────────────────────────────────────────────────────────────────────────────
 // BOTTOM NAV
 // ─────────────────────────────────────────────────────────────────────────────
-function BottomNav({ view, setView }) {
+function BottomNav({ view, setView, user }) {
   const items = [
     { id: "home", label: "Home", icon: "🏠" },
     { id: "search", label: "Search", icon: "🔍" },
     { id: "library", label: "Library", icon: "📚" },
     { id: "liked", label: "Liked", icon: "♥" },
+    { id: "profile", label: "Profile", icon: "👤" },
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0b0b10", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", zIndex: 101, height: 56 }}>
       {items.map((item) => (
-        <button key={item.id} onClick={() => setView(item.id)} style={{
-          flex: 1, background: "none", border: "none", cursor: "pointer",
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
-          color: view === item.id ? "#e8435a" : "#555", fontSize: 10, fontFamily: "inherit", fontWeight: 600,
-        }}>
+        <button key={item.id} onClick={() => setView(item.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, color: view === item.id ? "#e8435a" : "#555", fontSize: 10, fontFamily: "inherit", fontWeight: 600 }}>
           <span style={{ fontSize: 19 }}>{item.icon}</span>{item.label}
         </button>
       ))}
@@ -412,9 +411,7 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
             <div style={{ color: "#666", fontSize: 11, marginTop: 2 }}>{track.artist}</div>
           </div>
           <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#444", fontSize: 17, padding: 4, flexShrink: 0 }}>{liked ? "♥" : "♡"}</button>
-          {onAddToPlaylist && (
-            <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 4 }}>⋮</button>
-          )}
+          {onAddToPlaylist && <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 4 }}>⋮</button>}
         </div>
         {showMenu && onAddToPlaylist && (
           <div style={{ position: "absolute", right: 16, top: "100%", background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 4, zIndex: 200, minWidth: 160 }}>
@@ -426,10 +423,8 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
 
   return (
     <div style={{ position: "relative" }}>
-      <div
-        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onDoubleClick={onPlay}
-        style={{ display: "grid", gridTemplateColumns: "28px 44px 1fr 130px 60px", alignItems: "center", gap: 12, padding: "6px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.07)" : hover ? "rgba(255,255,255,0.03)" : "transparent", cursor: "pointer" }}
-      >
+      <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onDoubleClick={onPlay}
+        style={{ display: "grid", gridTemplateColumns: "28px 44px 1fr 130px 60px", alignItems: "center", gap: 12, padding: "6px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.07)" : hover ? "rgba(255,255,255,0.03)" : "transparent", cursor: "pointer" }}>
         <div style={{ color: isCurrent ? "#e8435a" : "#555", fontSize: 12, textAlign: "center" }}>
           {hover || isCurrent ? <span onClick={onPlay}>{playIcon}</span> : index + 1}
         </div>
@@ -441,9 +436,7 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
         <div style={{ color: "#555", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.album || ""}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "transparent", fontSize: 13, padding: 0, opacity: hover || liked ? 1 : 0 }}>♥</button>
-          {onAddToPlaylist && (
-            <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 0, opacity: hover ? 1 : 0 }}>⋮</button>
-          )}
+          {onAddToPlaylist && <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 0, opacity: hover ? 1 : 0 }}>⋮</button>}
         </div>
       </div>
       {showMenu && onAddToPlaylist && (
@@ -461,16 +454,8 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
 function SongCard({ track, isCurrent, isPlaying, onClick, isMobile }) {
   const [hover, setHover] = useState(false);
   return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{
-        background: isCurrent ? "rgba(232,67,90,0.1)" : hover ? "rgba(255,255,255,0.04)" : "#111118",
-        borderRadius: 12, padding: isMobile ? 10 : 14, cursor: "pointer",
-        border: `1px solid ${isCurrent ? "rgba(232,67,90,0.35)" : "rgba(255,255,255,0.05)"}`,
-        transition: "all 0.15s", position: "relative",
-      }}
-    >
+    <div onClick={onClick} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ background: isCurrent ? "rgba(232,67,90,0.1)" : hover ? "rgba(255,255,255,0.04)" : "#111118", borderRadius: 12, padding: isMobile ? 10 : 14, cursor: "pointer", border: `1px solid ${isCurrent ? "rgba(232,67,90,0.35)" : "rgba(255,255,255,0.05)"}`, transition: "all 0.15s", position: "relative" }}>
       <div style={{ position: "relative" }}>
         <CoverArt cover={track.cover} size={isMobile ? "100%" : 120} title={track.title} radius={10} />
         {(hover || isCurrent) && (
@@ -532,26 +517,519 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AUTH SCREEN — Email / Google / Phone OTP
+// PROFILE PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+function ProfilePage({ user, userDoc, onUpdate, isMobile }) {
+  const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(userDoc?.avatarUrl || user?.photoURL || "");
+  const [oldPw, setOldPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const fileInputRef = useRef();
+
+  const stats = userDoc?.listeningStats || { totalPlays: 0, totalMinutes: 0, topArtist: "" };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true); setMsg(""); setErr("");
+    try {
+      let avatarUrl = userDoc?.avatarUrl || "";
+      if (avatarFile) {
+        const ref = storageRef(storage, `avatars/${user.uid}`);
+        await uploadBytes(ref, avatarFile);
+        avatarUrl = await getDownloadURL(ref);
+      }
+      await updateProfile(user, { displayName, photoURL: avatarUrl });
+      await updateDoc(doc(db, "users", user.uid), { name: displayName, avatarUrl });
+      onUpdate({ displayName, avatarUrl });
+      setMsg("Profile updated!");
+    } catch (e) { setErr(e.message); }
+    setSaving(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (newPw !== confirmPw) { setErr("Passwords don't match"); return; }
+    if (newPw.length < 6) { setErr("Password must be 6+ characters"); return; }
+    setSaving(true); setMsg(""); setErr("");
+    try {
+      const cred = EmailAuthProvider.credential(user.email, oldPw);
+      await reauthenticateWithCredential(user, cred);
+      await updatePassword(user, newPw);
+      setMsg("Password changed!"); setOldPw(""); setNewPw(""); setConfirmPw("");
+    } catch (e) {
+      setErr(e.code === "auth/wrong-password" ? "Old password is incorrect." : e.message);
+    }
+    setSaving(false);
+  };
+
+  const isGoogle = user?.providerData?.some((p) => p.providerId === "google.com");
+  const isPhone = !!user?.phoneNumber;
+
+  const inp = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "11px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+  const section = (title, children) => (
+    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
+      <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>{title}</div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div style={{ padding: isMobile ? "12px 16px" : "28px 32px", maxWidth: 560 }}>
+      <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, marginTop: 0 }}>👤 Profile</h2>
+
+      {msg && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.3)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 13, marginBottom: 14 }}>{msg}</div>}
+      {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 13, marginBottom: 14 }}>{err}</div>}
+
+      {section("AVATAR & DISPLAY NAME", (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => fileInputRef.current?.click()}>
+              {avatarPreview
+                ? <img src={avatarPreview} alt="avatar" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: "2px solid #e8435a" }} />
+                : <div style={{ width: 72, height: 72, borderRadius: "50%", background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "#fff" }}>
+                    {(displayName || user?.email || "?")[0].toUpperCase()}
+                  </div>
+              }
+              <div style={{ position: "absolute", bottom: 0, right: 0, width: 22, height: 22, background: "#e8435a", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>✏️</div>
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarChange} />
+            <div style={{ flex: 1 }}>
+              <div style={{ color: "#555", fontSize: 11, marginBottom: 6 }}>Display Name</div>
+              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" style={inp} />
+            </div>
+          </div>
+          <button onClick={handleSaveProfile} disabled={saving} style={{ background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer" }}>
+            {saving ? "Saving…" : "Save Profile"}
+          </button>
+        </div>
+      ))}
+
+      {section("LISTENING STATS", (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          {[
+            { label: "Total Plays", value: stats.totalPlays || 0 },
+            { label: "Minutes", value: Math.round(stats.totalMinutes || 0) },
+            { label: "Top Artist", value: stats.topArtist || "—" },
+          ].map((s) => (
+            <div key={s.label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "14px 12px", textAlign: "center" }}>
+              <div style={{ color: "#e8435a", fontSize: 20, fontWeight: 800 }}>{s.value}</div>
+              <div style={{ color: "#555", fontSize: 11, marginTop: 4 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {section("LINKED ACCOUNTS", (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[
+            { icon: "✉️", label: "Email", value: user?.email || "—", linked: !!user?.email },
+            { icon: "🔵", label: "Google", value: isGoogle ? "Connected" : "Not linked", linked: isGoogle },
+            { icon: "📱", label: "Phone", value: user?.phoneNumber || "Not linked", linked: !!user?.phoneNumber },
+          ].map((item) => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
+              <span style={{ fontSize: 18 }}>{item.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: "#efefef", fontSize: 13, fontWeight: 600 }}>{item.label}</div>
+                <div style={{ color: "#555", fontSize: 11 }}>{item.value}</div>
+              </div>
+              <div style={{ color: item.linked ? "#4caf50" : "#444", fontSize: 11, fontWeight: 700 }}>{item.linked ? "✓ Linked" : "Not linked"}</div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {!isGoogle && !isPhone && section("CHANGE PASSWORD", (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input type="password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} placeholder="Current password" style={inp} />
+          <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="New password" style={inp} />
+          <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm new password" style={inp} />
+          <button onClick={handleChangePassword} disabled={saving} style={{ background: "rgba(232,67,90,0.15)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 10, color: "#e8435a", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer" }}>
+            {saving ? "Updating…" : "Change Password"}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SETTINGS PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+const EQ_PRESETS = {
+  Flat:       [0,  0,  0,  0,  0],
+  Bass:       [6,  4,  0, -2, -3],
+  Treble:     [-3,-2,  0,  4,  6],
+  Vocal:      [-2, 0,  4,  3,  0],
+  Electronic: [5,  3, -2,  3,  4],
+  Classical:  [4,  2,  0,  2,  4],
+};
+
+function SettingsPage({ settings, onSave, audio, isMobile }) {
+  const [s, setS] = useState(settings);
+  const [sleepInput, setSleepInput] = useState("");
+
+  useEffect(() => { setS(settings); }, [settings]);
+
+  const update = (key, val) => {
+    const next = { ...s, [key]: val };
+    setS(next);
+    onSave(next);
+    if (key === "eqGains") audio.applyEQ(val);
+    if (key === "sleepTimer") audio.setSleepTimer(val);
+  };
+
+  const applyPreset = (name) => {
+    const gains = EQ_PRESETS[name];
+    const next = { ...s, eqPreset: name, eqGains: gains };
+    setS(next);
+    onSave(next);
+    audio.applyEQ(gains);
+  };
+
+  const section = (title, children) => (
+    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
+      <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>{title}</div>
+      {children}
+    </div>
+  );
+
+  const toggle = (key) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+      <span style={{ color: "#ccc", fontSize: 13 }}>{key === "shuffle" ? "🔀 Shuffle" : ""}</span>
+      <div onClick={() => update(key, !s[key])} style={{ width: 40, height: 22, borderRadius: 11, background: s[key] ? "#e8435a" : "#333", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+        <div style={{ position: "absolute", top: 3, left: s[key] ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+      </div>
+    </div>
+  );
+
+  const EQ_BANDS = ["60Hz", "250Hz", "1kHz", "4kHz", "12kHz"];
+
+  return (
+    <div style={{ padding: isMobile ? "12px 16px" : "28px 32px", maxWidth: 600 }}>
+      <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, marginTop: 0 }}>⚙️ Settings</h2>
+
+      {section("PLAYBACK", (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {/* Shuffle */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+            <span style={{ color: "#ccc", fontSize: 13 }}>🔀 Shuffle</span>
+            <div onClick={() => update("shuffle", !s.shuffle)} style={{ width: 40, height: 22, borderRadius: 11, background: s.shuffle ? "#e8435a" : "#333", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+              <div style={{ position: "absolute", top: 3, left: s.shuffle ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+            </div>
+          </div>
+
+          {/* Repeat */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
+            <span style={{ color: "#ccc", fontSize: 13 }}>🔁 Repeat</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["off", "all", "one"].map((mode) => (
+                <button key={mode} onClick={() => update("repeat", mode)} style={{ background: s.repeat === mode ? "#e8435a" : "rgba(255,255,255,0.07)", border: "none", borderRadius: 6, color: s.repeat === mode ? "#fff" : "#777", fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "5px 10px", cursor: "pointer" }}>
+                  {mode === "off" ? "Off" : mode === "all" ? "All" : "One"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Crossfade */}
+          <div style={{ padding: "8px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ color: "#ccc", fontSize: 13 }}>🎚 Crossfade</span>
+              <span style={{ color: "#e8435a", fontSize: 12, fontWeight: 700 }}>{s.crossfade}s</span>
+            </div>
+            <input type="range" min={0} max={12} step={1} value={s.crossfade} onChange={(e) => update("crossfade", +e.target.value)}
+              style={{ width: "100%", accentColor: "#e8435a", cursor: "pointer" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#444", fontSize: 10, marginTop: 4 }}>
+              <span>Off</span><span>12s</span>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {section("EQUALIZER", (
+        <div>
+          {/* Presets */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: "#555", fontSize: 11, marginBottom: 8 }}>PRESET</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {Object.keys(EQ_PRESETS).map((name) => (
+                <button key={name} onClick={() => applyPreset(name)} style={{ background: s.eqPreset === name ? "#e8435a" : "rgba(255,255,255,0.07)", border: "none", borderRadius: 20, color: s.eqPreset === name ? "#fff" : "#888", fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "5px 12px", cursor: "pointer" }}>
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Band sliders */}
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${EQ_BANDS.length}, 1fr)`, gap: 8, alignItems: "end" }}>
+            {EQ_BANDS.map((band, i) => (
+              <div key={band} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <span style={{ color: "#e8435a", fontSize: 10, fontWeight: 700 }}>{s.eqGains[i] > 0 ? "+" : ""}{s.eqGains[i]}</span>
+                <div style={{ height: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <input type="range" min={-12} max={12} step={1} value={s.eqGains[i]}
+                    onChange={(e) => {
+                      const gains = [...s.eqGains];
+                      gains[i] = +e.target.value;
+                      update("eqGains", gains);
+                      update("eqPreset", "Custom");
+                    }}
+                    style={{ accentColor: "#e8435a", cursor: "pointer", writingMode: "vertical-lr", direction: "rtl", height: 90 }}
+                  />
+                </div>
+                <span style={{ color: "#555", fontSize: 10 }}>{band}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {section("SLEEP TIMER", (
+        <div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {[0, 15, 30, 45, 60, 90].map((m) => (
+              <button key={m} onClick={() => { update("sleepTimer", m); audio.setSleepTimer(m); }} style={{ background: s.sleepTimer === m ? "#e8435a" : "rgba(255,255,255,0.07)", border: "none", borderRadius: 20, color: s.sleepTimer === m ? "#fff" : "#888", fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "6px 14px", cursor: "pointer" }}>
+                {m === 0 ? "Off" : `${m}m`}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input type="number" placeholder="Custom (min)" value={sleepInput} onChange={(e) => setSleepInput(e.target.value)} min={1} max={300}
+              style={{ flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "9px 12px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit" }} />
+            <button onClick={() => { const m = parseInt(sleepInput); if (m > 0) { update("sleepTimer", m); audio.setSleepTimer(m); setSleepInput(""); } }} style={{ background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "9px 14px", cursor: "pointer" }}>Set</button>
+          </div>
+          {s.sleepTimer > 0 && <div style={{ color: "#4caf50", fontSize: 12, marginTop: 8 }}>⏱ Playback will stop in {s.sleepTimer} minutes</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobile }) {
+  const [tab, setTab] = useState("songs");
+  const [form, setForm] = useState({ title: "", artist: "", album: "", playlist: "", order: 0 });
+  const [audioFile, setAudioFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [plForm, setPlForm] = useState({ name: "", order: 0 });
+  const [plMsg, setPlMsg] = useState("");
+
+  const inp = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "11px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+
+  const handleCoverChange = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setCoverFile(f);
+    setCoverPreview(URL.createObjectURL(f));
+  };
+
+  const handleAddSong = async () => {
+    if (!form.title || !audioFile) { setErr("Title and audio file are required."); return; }
+    setUploading(true); setMsg(""); setErr("");
+    try {
+      setUploadProgress("Uploading audio…");
+      const audioRef2 = storageRef(storage, `songs/${Date.now()}_${audioFile.name}`);
+      await uploadBytes(audioRef2, audioFile);
+      const audioUrl = await getDownloadURL(audioRef2);
+
+      let cover = "";
+      if (coverFile) {
+        setUploadProgress("Uploading cover…");
+        const covRef = storageRef(storage, `covers/${Date.now()}_${coverFile.name}`);
+        await uploadBytes(covRef, coverFile);
+        cover = await getDownloadURL(covRef);
+      }
+
+      setUploadProgress("Saving to Firestore…");
+      const docRef = await addDoc(collection(db, "songs"), {
+        title: form.title, artist: form.artist, album: form.album,
+        playlist: form.playlist, order: Number(form.order),
+        audioUrl, cover, createdAt: Date.now(),
+      });
+
+      onSongAdded({ id: docRef.id, ...form, audioUrl, cover, order: Number(form.order) });
+      setMsg(`✅ "${form.title}" added!`);
+      setForm({ title: "", artist: "", album: "", playlist: "", order: 0 });
+      setAudioFile(null); setCoverFile(null); setCoverPreview("");
+      setUploadProgress("");
+    } catch (e) { setErr(e.message); setUploadProgress(""); }
+    setUploading(false);
+  };
+
+  const handleDeleteSong = async (song) => {
+    if (!window.confirm(`Delete "${song.title}"?`)) return;
+    try {
+      await deleteDoc(doc(db, "songs", song.id));
+      onSongDeleted(song.id);
+    } catch (e) { setErr(e.message); }
+  };
+
+  const handleAddPlaylist = async () => {
+    if (!plForm.name.trim()) { setPlMsg("Name required."); return; }
+    try {
+      await addDoc(collection(db, "playlists"), { name: plForm.name.trim(), order: Number(plForm.order) });
+      setPlMsg(`✅ "${plForm.name}" playlist created!`);
+      setPlForm({ name: "", order: 0 });
+    } catch (e) { setPlMsg(e.message); }
+  };
+
+  return (
+    <div style={{ padding: isMobile ? "12px 16px" : "28px 32px", maxWidth: 680 }}>
+      <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🛡️ Admin Panel</h2>
+      <p style={{ color: "#555", fontSize: 13, marginBottom: 20 }}>Manage songs, covers and playlists</p>
+
+      {/* Tab bar */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 22, background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 4 }}>
+        {[["songs", "🎵 Songs"], ["playlists", "📋 Playlists"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, background: tab === id ? "#e8435a" : "none", border: "none", borderRadius: 7, color: tab === id ? "#fff" : "#666", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "9px 0", cursor: "pointer" }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "songs" && (
+        <>
+          {/* Add Song Form */}
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
+            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>ADD NEW SONG</div>
+
+            {msg && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.3)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 13, marginBottom: 12 }}>{msg}</div>}
+            {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 13, marginBottom: 12 }}>{err}</div>}
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Song title *" style={inp} />
+              <input value={form.artist} onChange={(e) => setForm({ ...form, artist: e.target.value })} placeholder="Artist" style={inp} />
+              <input value={form.album} onChange={(e) => setForm({ ...form, album: e.target.value })} placeholder="Album" style={inp} />
+              <select value={form.playlist} onChange={(e) => setForm({ ...form, playlist: e.target.value })}
+                style={{ ...inp, cursor: "pointer" }}>
+                <option value="">No Playlist</option>
+                {allPlaylists.map((pl) => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
+              </select>
+              <input type="number" value={form.order} onChange={(e) => setForm({ ...form, order: +e.target.value })} placeholder="Sort order" style={inp} />
+            </div>
+
+            {/* Audio upload */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: "#555", fontSize: 11, marginBottom: 6 }}>AUDIO FILE *</div>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.04)", border: `1px dashed ${audioFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer" }}>
+                <span style={{ fontSize: 20 }}>🎵</span>
+                <div>
+                  <div style={{ color: audioFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600 }}>{audioFile ? audioFile.name : "Choose audio file"}</div>
+                  <div style={{ color: "#444", fontSize: 11 }}>MP3, WAV, OGG</div>
+                </div>
+                <input type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => setAudioFile(e.target.files[0])} />
+              </label>
+            </div>
+
+            {/* Cover upload */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ color: "#555", fontSize: 11, marginBottom: 6 }}>COVER ART (optional)</div>
+              <label style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.04)", border: `1px dashed ${coverFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "12px 16px", cursor: "pointer" }}>
+                {coverPreview
+                  ? <img src={coverPreview} alt="cover" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover" }} />
+                  : <div style={{ width: 48, height: 48, borderRadius: 8, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🖼️</div>
+                }
+                <div>
+                  <div style={{ color: coverFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600 }}>{coverFile ? coverFile.name : "Choose cover image"}</div>
+                  <div style={{ color: "#444", fontSize: 11 }}>PNG, JPG, WebP</div>
+                </div>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleCoverChange} />
+              </label>
+            </div>
+
+            {uploadProgress && <div style={{ color: "#888", fontSize: 12, marginBottom: 10 }}>⏳ {uploadProgress}</div>}
+
+            <button onClick={handleAddSong} disabled={uploading} style={{ width: "100%", background: uploading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "12px 0", cursor: uploading ? "not-allowed" : "pointer" }}>
+              {uploading ? "Uploading…" : "➕ Add Song"}
+            </button>
+          </div>
+
+          {/* Songs list */}
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20 }}>
+            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>ALL SONGS ({allSongs.length})</div>
+            {allSongs.length === 0
+              ? <div style={{ color: "#444", fontSize: 13 }}>No songs yet.</div>
+              : <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+                  {allSongs.map((s) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
+                      <CoverArt cover={s.cover} size={36} title={s.title} radius={6} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: "#efefef", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                        <div style={{ color: "#555", fontSize: 11 }}>{s.artist}</div>
+                      </div>
+                      <button onClick={() => handleDeleteSong(s)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 6, color: "#e8435a", fontFamily: "inherit", fontSize: 11, padding: "4px 10px", cursor: "pointer" }}>🗑</button>
+                    </div>
+                  ))}
+                </div>
+            }
+          </div>
+        </>
+      )}
+
+      {tab === "playlists" && (
+        <div>
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
+            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>CREATE PLAYLIST</div>
+            {plMsg && <div style={{ color: plMsg.startsWith("✅") ? "#4caf50" : "#e8435a", fontSize: 12, marginBottom: 10 }}>{plMsg}</div>}
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <input value={plForm.name} onChange={(e) => setPlForm({ ...plForm, name: e.target.value })} placeholder="Playlist name" style={{ ...inp }} />
+              <input type="number" value={plForm.order} onChange={(e) => setPlForm({ ...plForm, order: +e.target.value })} placeholder="Order" style={{ ...inp, width: 80 }} />
+            </div>
+            <button onClick={handleAddPlaylist} style={{ background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer", width: "100%" }}>
+              ➕ Create Playlist
+            </button>
+          </div>
+
+          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20 }}>
+            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>ALL PLAYLISTS ({allPlaylists.length})</div>
+            {allPlaylists.length === 0
+              ? <div style={{ color: "#444", fontSize: 13 }}>No playlists yet.</div>
+              : allPlaylists.map((pl) => (
+                  <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 20 }}>📋</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: "#efefef", fontSize: 13, fontWeight: 600 }}>{pl.name}</div>
+                      <div style={{ color: "#555", fontSize: 11 }}>Order: {pl.order}</div>
+                    </div>
+                  </div>
+                ))
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTH SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 function AuthScreen({ onAuthSuccess }) {
-  // "email" | "phone"
   const [method, setMethod] = useState("email");
-  // email sub-mode: "login" | "signup"
   const [emailMode, setEmailMode] = useState("login");
-
-  // Email fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
-
-  // Phone fields
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [confirmResult, setConfirmResult] = useState(null);
-
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
@@ -559,38 +1037,21 @@ function AuthScreen({ onAuthSuccess }) {
   const recaptchaRef = useRef(null);
   const recaptchaVerifierRef = useRef(null);
 
-  // Setup invisible recaptcha once
   useEffect(() => {
     if (!recaptchaVerifierRef.current && recaptchaRef.current) {
-      recaptchaVerifierRef.current = new RecaptchaVerifier(
-        auth,
-        recaptchaRef.current,
-        { size: "invisible" }
-      );
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaRef.current, { size: "invisible" });
     }
   }, []);
 
-  const inp = {
-    width: "100%",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 10,
-    padding: "12px 16px",
-    color: "#f0f0f0",
-    fontSize: 14,
-    outline: "none",
-    fontFamily: "inherit",
-    boxSizing: "border-box",
-  };
+  const inp = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 16px", color: "#f0f0f0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
 
-  // ── Email/Password Auth ──
   const handleEmailAuth = async () => {
     setErr(""); setInfo("");
-    if (!email.trim() || !pw.trim()) { setErr("Email and password are required."); return; }
+    if (!email.trim() || !pw.trim()) { setErr("Email and password required."); return; }
     if (emailMode === "signup") {
-      if (!name.trim()) { setErr("Please enter your name."); return; }
+      if (!name.trim()) { setErr("Enter your name."); return; }
       if (pw !== confirmPw) { setErr("Passwords do not match."); return; }
-      if (pw.length < 6) { setErr("Password must be at least 6 characters."); return; }
+      if (pw.length < 6) { setErr("Password must be 6+ characters."); return; }
     }
     setLoading(true);
     try {
@@ -598,71 +1059,42 @@ function AuthScreen({ onAuthSuccess }) {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), pw);
         await sendEmailVerification(cred.user);
         await createUserDoc(cred.user.uid, { name: name.trim(), email: email.trim() });
-        setInfo("✉️ Verification email sent! Please verify before logging in.");
-        setEmailMode("login");
-        setName(""); setPw(""); setConfirmPw("");
+        setInfo("✉️ Verification email sent! Please verify then log in.");
+        setEmailMode("login"); setName(""); setPw(""); setConfirmPw("");
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), pw);
-        if (!cred.user.emailVerified) {
-          await signOut(auth);
-          setErr("Please verify your email first. Check your inbox.");
-          setLoading(false); return;
-        }
+        if (!cred.user.emailVerified) { await signOut(auth); setErr("Verify your email first."); setLoading(false); return; }
         onAuthSuccess(cred.user);
       }
     } catch (e) {
-      const msg =
-        e.code === "auth/user-not-found" ? "No account with this email." :
-        e.code === "auth/wrong-password" ? "Incorrect password." :
-        e.code === "auth/email-already-in-use" ? "Email already registered." :
-        e.code === "auth/invalid-email" ? "Invalid email address." :
-        "Something went wrong. Try again.";
-      setErr(msg);
+      setErr(e.code === "auth/user-not-found" ? "No account with this email." : e.code === "auth/wrong-password" ? "Incorrect password." : e.code === "auth/email-already-in-use" ? "Email already registered." : "Something went wrong.");
     }
     setLoading(false);
   };
 
-  // ── Google Auth ──
   const handleGoogle = async () => {
     setErr(""); setLoading(true);
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       const existing = await getUserDoc(cred.user.uid);
-      if (!existing) {
-        await createUserDoc(cred.user.uid, { name: cred.user.displayName, email: cred.user.email });
-      }
+      if (!existing) await createUserDoc(cred.user.uid, { name: cred.user.displayName, email: cred.user.email });
       onAuthSuccess(cred.user);
-    } catch {
-      setErr("Google sign-in failed. Try again.");
-    }
+    } catch { setErr("Google sign-in failed."); }
     setLoading(false);
   };
 
-  // ── Phone: Send OTP ──
   const handleSendOtp = async () => {
     setErr(""); setInfo("");
-    const cleaned = phone.trim();
-    if (!cleaned) { setErr("Enter a valid phone number with country code."); return; }
+    if (!phone.trim()) { setErr("Enter phone number with country code."); return; }
     setLoading(true);
     try {
-      if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(
-          auth, recaptchaRef.current, { size: "invisible" }
-        );
-      }
-      const result = await signInWithPhoneNumber(auth, cleaned, recaptchaVerifierRef.current);
-      setConfirmResult(result);
-      setOtpSent(true);
-      setInfo(`OTP sent to ${cleaned}`);
-    } catch (e) {
-      setErr(e.message || "Failed to send OTP. Check the phone number.");
-      // Reset recaptcha on error
-      recaptchaVerifierRef.current = null;
-    }
+      if (!recaptchaVerifierRef.current) recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaRef.current, { size: "invisible" });
+      const result = await signInWithPhoneNumber(auth, phone.trim(), recaptchaVerifierRef.current);
+      setConfirmResult(result); setOtpSent(true); setInfo(`OTP sent to ${phone}`);
+    } catch (e) { setErr(e.message || "Failed to send OTP."); recaptchaVerifierRef.current = null; }
     setLoading(false);
   };
 
-  // ── Phone: Verify OTP ──
   const handleVerifyOtp = async () => {
     setErr(""); setInfo("");
     if (!otp.trim()) { setErr("Enter the OTP."); return; }
@@ -670,174 +1102,107 @@ function AuthScreen({ onAuthSuccess }) {
     try {
       const cred = await confirmResult.confirm(otp.trim());
       const existing = await getUserDoc(cred.user.uid);
-      if (!existing) {
-        await createUserDoc(cred.user.uid, { phone: cred.user.phoneNumber });
-      }
+      if (!existing) await createUserDoc(cred.user.uid, { phone: cred.user.phoneNumber });
       onAuthSuccess(cred.user);
-    } catch {
-      setErr("Invalid OTP. Please try again.");
-    }
+    } catch { setErr("Invalid OTP."); }
     setLoading(false);
   };
 
   const methodTab = (id, label, icon) => (
-    <button onClick={() => { setMethod(id); setErr(""); setInfo(""); setOtpSent(false); setOtp(""); }} style={{
-      flex: 1, background: method === id ? "#e8435a" : "none",
-      border: "none", borderRadius: 8, padding: "9px 0", cursor: "pointer",
-      color: method === id ? "#fff" : "#666", fontFamily: "inherit", fontSize: 13, fontWeight: 700,
-      display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s",
-    }}>
+    <button onClick={() => { setMethod(id); setErr(""); setInfo(""); setOtpSent(false); setOtp(""); }} style={{ flex: 1, background: method === id ? "#e8435a" : "none", border: "none", borderRadius: 8, padding: "9px 0", cursor: "pointer", color: method === id ? "#fff" : "#666", fontFamily: "inherit", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
       <span>{icon}</span>{label}
     </button>
   );
 
   return (
-    <div style={{
-      minHeight: "100vh", background: "#090912",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'Segoe UI', sans-serif", padding: 16,
-      backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,67,90,0.18) 0%, transparent 70%)",
-    }}>
-      {/* invisible recaptcha anchor */}
+    <div style={{ minHeight: "100vh", background: "#090912", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', sans-serif", padding: 16, backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,67,90,0.18) 0%, transparent 70%)" }}>
       <div ref={recaptchaRef} />
-
       <div style={{ width: "100%", maxWidth: 400 }}>
-        {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 38, letterSpacing: -1, lineHeight: 1 }}>musify</div>
+          <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 38, letterSpacing: -1 }}>musify</div>
           <div style={{ color: "#444", fontSize: 13, marginTop: 6 }}>Your music, your world</div>
         </div>
-
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "30px 28px" }}>
-
-          {/* Method tabs: Email | Phone */}
           <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 3, marginBottom: 22, gap: 3 }}>
             {methodTab("email", "Email", "✉️")}
             {methodTab("phone", "Phone", "📱")}
           </div>
 
-          {/* ── EMAIL METHOD ── */}
           {method === "email" && (
             <>
-              {/* Login / Signup sub-tabs */}
               <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: 3, marginBottom: 20, gap: 2 }}>
                 {["login", "signup"].map((m) => (
-                  <button key={m} onClick={() => { setEmailMode(m); setErr(""); setInfo(""); }} style={{
-                    flex: 1, background: emailMode === m ? "rgba(232,67,90,0.25)" : "none",
-                    border: emailMode === m ? "1px solid rgba(232,67,90,0.3)" : "1px solid transparent",
-                    borderRadius: 6, padding: "7px 0", cursor: "pointer",
-                    color: emailMode === m ? "#e8435a" : "#555", fontFamily: "inherit", fontSize: 12, fontWeight: 700,
-                  }}>
+                  <button key={m} onClick={() => { setEmailMode(m); setErr(""); setInfo(""); }} style={{ flex: 1, background: emailMode === m ? "rgba(232,67,90,0.25)" : "none", border: emailMode === m ? "1px solid rgba(232,67,90,0.3)" : "1px solid transparent", borderRadius: 6, padding: "7px 0", cursor: "pointer", color: emailMode === m ? "#e8435a" : "#555", fontFamily: "inherit", fontSize: 12, fontWeight: 700 }}>
                     {m === "login" ? "Log In" : "Sign Up"}
                   </button>
                 ))}
               </div>
-
               {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
               {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
-
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {emailMode === "signup" && (
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={inp} />
-                )}
+                {emailMode === "signup" && <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={inp} />}
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" style={inp} />
-                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" style={inp}
-                  onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()} />
-                {emailMode === "signup" && (
-                  <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm password" style={inp}
-                    onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()} />
-                )}
-                <button onClick={handleEmailAuth} disabled={loading} style={{
-                  background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10,
-                  color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14,
-                  padding: "13px 0", cursor: loading ? "not-allowed" : "pointer", marginTop: 2,
-                }}>
+                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" style={inp} onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()} />
+                {emailMode === "signup" && <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm password" style={inp} />}
+                <button onClick={handleEmailAuth} disabled={loading} style={{ background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: loading ? "not-allowed" : "pointer", marginTop: 2 }}>
                   {loading ? "Please wait…" : emailMode === "login" ? "Log In" : "Create Account"}
                 </button>
               </div>
-
-              {/* Divider */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0" }}>
                 <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
                 <span style={{ color: "#444", fontSize: 12 }}>or continue with</span>
                 <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
               </div>
-
-              {/* Google button */}
-              <button onClick={handleGoogle} disabled={loading} style={{
-                width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 10, color: "#efefef", fontFamily: "inherit", fontWeight: 600, fontSize: 14,
-                padding: "12px 0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              }}>
-                <svg width="18" height="18" viewBox="0 0 48 48">
-                  <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
-                  <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
-                  <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
-                  <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
-                </svg>
+              <button onClick={handleGoogle} disabled={loading} style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#efefef", fontFamily: "inherit", fontWeight: 600, fontSize: 14, padding: "12px 0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
                 Continue with Google
               </button>
             </>
           )}
 
-          {/* ── PHONE METHOD ── */}
           {method === "phone" && (
             <>
               {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
               {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
-
-              {!otpSent ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ color: "#555", fontSize: 12, marginBottom: 2 }}>Enter your phone number with country code</div>
-                  <input
-                    value={phone} onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 9876543210"
-                    style={inp}
-                    onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-                  />
-                  <button onClick={handleSendOtp} disabled={loading} style={{
-                    background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10,
-                    color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14,
-                    padding: "13px 0", cursor: loading ? "not-allowed" : "pointer",
-                  }}>
-                    {loading ? "Sending…" : "Send OTP"}
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ color: "#555", fontSize: 12 }}>Enter the 6-digit OTP sent to <span style={{ color: "#efefef" }}>{phone}</span></div>
-                  <input
-                    value={otp} onChange={(e) => setOtp(e.target.value)}
-                    placeholder="6-digit OTP"
-                    maxLength={6}
-                    style={{ ...inp, letterSpacing: 8, fontSize: 20, textAlign: "center" }}
-                    onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
-                  />
-                  <button onClick={handleVerifyOtp} disabled={loading} style={{
-                    background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10,
-                    color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14,
-                    padding: "13px 0", cursor: loading ? "not-allowed" : "pointer",
-                  }}>
-                    {loading ? "Verifying…" : "Verify OTP"}
-                  </button>
-                  <button onClick={() => { setOtpSent(false); setOtp(""); setErr(""); setInfo(""); recaptchaVerifierRef.current = null; }} style={{
-                    background: "none", border: "none", color: "#555", fontFamily: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline",
-                  }}>
-                    ← Change number / Resend
-                  </button>
-                </div>
-              )}
+              {!otpSent
+                ? <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ color: "#555", fontSize: 12 }}>Enter phone number with country code</div>
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 9876543210" style={inp} onKeyDown={(e) => e.key === "Enter" && handleSendOtp()} />
+                    <button onClick={handleSendOtp} disabled={loading} style={{ background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: loading ? "not-allowed" : "pointer" }}>
+                      {loading ? "Sending…" : "Send OTP"}
+                    </button>
+                  </div>
+                : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ color: "#555", fontSize: 12 }}>OTP sent to <span style={{ color: "#efefef" }}>{phone}</span></div>
+                    <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" maxLength={6} style={{ ...inp, letterSpacing: 8, fontSize: 20, textAlign: "center" }} onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()} />
+                    <button onClick={handleVerifyOtp} disabled={loading} style={{ background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: loading ? "not-allowed" : "pointer" }}>
+                      {loading ? "Verifying…" : "Verify OTP"}
+                    </button>
+                    <button onClick={() => { setOtpSent(false); setOtp(""); setErr(""); setInfo(""); recaptchaVerifierRef.current = null; }} style={{ background: "none", border: "none", color: "#555", fontFamily: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
+                      ← Change number / Resend
+                    </button>
+                  </div>
+              }
             </>
           )}
         </div>
-
-        <div style={{ textAlign: "center", color: "#333", fontSize: 11, marginTop: 20 }}>
-          musify • your personal music player
-        </div>
+        <div style={{ textAlign: "center", color: "#333", fontSize: 11, marginTop: 20 }}>musify • your personal music player</div>
       </div>
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEFAULT PLAYBACK SETTINGS
+// ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_SETTINGS = {
+  shuffle: false,
+  repeat: "off",        // "off" | "all" | "one"
+  crossfade: 0,         // seconds
+  eqPreset: "Flat",
+  eqGains: [0, 0, 0, 0, 0],
+  sleepTimer: 0,        // minutes (0 = off)
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN APP
@@ -846,6 +1211,7 @@ export default function Musify() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(true);
+  const [userDoc, setUserDoc] = useState(null);
 
   const [view, setView] = useState("home");
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
@@ -864,110 +1230,135 @@ export default function Musify() {
   const [userPlaylists, setUserPlaylists] = useState([]);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
 
+  const [playbackSettings, setPlaybackSettings] = useState(() => {
+    try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("musify_settings") || "{}") }; }
+    catch { return DEFAULT_SETTINGS; }
+  });
+
   const isMobile = useIsMobile();
+
+  // track play stats
+  const playStartRef = useRef(null);
+  const artistCountRef = useRef({});
+
+  const handleEnded = useCallback(() => {
+    const s = playbackSettings;
+    if (s.repeat === "one") { audio.seek(0); audio.play(); return; }
+    const q = queue.length > 0 ? queue : allSongs;
+    let nextTrack;
+    if (s.shuffle) {
+      const others = q.filter((t) => t.id !== currentTrack?.id);
+      nextTrack = others[Math.floor(Math.random() * others.length)] || q[0];
+    } else {
+      const idx = q.findIndex((t) => t.id === currentTrack?.id);
+      if (idx === q.length - 1 && s.repeat === "off") { setIsPlaying(false); return; }
+      nextTrack = q[(idx + 1) % q.length];
+    }
+    if (nextTrack) playTrack(nextTrack, q);
+  }, [currentTrack, queue, allSongs, playbackSettings]);
+
+  const audio = useAudioPlayer(handleEnded, playbackSettings);
 
   // ── Auth listener ──
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        // Phone users are always "verified"; email users need emailVerified
         const isPhone = !!u.phoneNumber;
         if (isPhone || u.emailVerified) {
           setUser(u);
           const data = await getUserDoc(u.uid);
           if (data) {
+            setUserDoc(data);
             setUserPlaylists(data.playlists || []);
             const liked = data.likedSongs || [];
             setLikedIds(new Set(liked.map((s) => s.id)));
             setLikedTracksArr(liked);
           }
-        } else {
-          setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
+        } else { setUser(null); }
+      } else { setUser(null); }
       setAuthLoading(false);
     });
     return unsub;
   }, []);
 
-  // ── Fetch songs & playlists from Firestore ──
   useEffect(() => {
     const load = async () => {
       try {
         const [songs, playlists] = await Promise.all([fetchSongs(), fetchPlaylists()]);
-        setAllSongs(songs);
-        setAllPlaylists(playlists);
-      } catch (e) {
-        console.error("Firestore fetch failed:", e);
-      } finally {
-        setDataLoading(false);
-      }
+        setAllSongs(songs); setAllPlaylists(playlists);
+      } catch (e) { console.error(e); } finally { setDataLoading(false); }
     };
     load();
   }, []);
-
-  const handleEnded = useCallback(() => {
-    const q = queue.length > 0 ? queue : allSongs;
-    const idx = q.findIndex((t) => t.id === currentTrack?.id);
-    const next = q[(idx + 1) % q.length];
-    if (next) playTrack(next, q);
-  }, [currentTrack, queue, allSongs]);
-
-  const audio = useAudioPlayer(handleEnded);
 
   const handleAuthSuccess = async (u) => {
     setUser(u);
     const data = await getUserDoc(u.uid);
     if (data) {
+      setUserDoc(data);
       setUserPlaylists(data.playlists || []);
       const liked = data.likedSongs || [];
       setLikedIds(new Set(liked.map((s) => s.id)));
       setLikedTracksArr(liked);
     } else {
-      await createUserDoc(u.uid, {
-        name: u.displayName || "",
-        email: u.email || "",
-        phone: u.phoneNumber || "",
-      });
+      await createUserDoc(u.uid, { name: u.displayName || "", email: u.email || "", phone: u.phoneNumber || "" });
     }
   };
 
   const handleLogout = async () => {
     await signOut(auth);
-    setUser(null);
-    setCurrentTrack(null);
-    setIsPlaying(false);
-    setUserPlaylists([]);
-    setLikedIds(new Set());
-    setLikedTracksArr([]);
+    setUser(null); setCurrentTrack(null); setIsPlaying(false);
+    setUserPlaylists([]); setLikedIds(new Set()); setLikedTracksArr([]);
     audio.pause();
   };
 
+  const handleSaveSettings = (s) => {
+    setPlaybackSettings(s);
+    localStorage.setItem("musify_settings", JSON.stringify(s));
+  };
+
   // ── Play ──
-  const playTrack = useCallback(
-    (track, trackList = []) => {
-      if (currentTrack?.id === track.id) {
-        if (isPlaying) { audio.pause(); setIsPlaying(false); }
-        else { audio.play(); setIsPlaying(true); }
-        return;
+  const playTrack = useCallback((track, trackList = []) => {
+    // update stats
+    if (playStartRef.current && currentTrack) {
+      const mins = (Date.now() - playStartRef.current) / 60000;
+      if (user) {
+        const artist = currentTrack.artist || "Unknown";
+        artistCountRef.current[artist] = (artistCountRef.current[artist] || 0) + 1;
+        const topArtist = Object.entries(artistCountRef.current).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+        updateDoc(doc(db, "users", user.uid), {
+          "listeningStats.totalPlays": (userDoc?.listeningStats?.totalPlays || 0) + 1,
+          "listeningStats.totalMinutes": (userDoc?.listeningStats?.totalMinutes || 0) + mins,
+          "listeningStats.topArtist": topArtist,
+        }).catch(() => {});
       }
-      if (!track.audioUrl) return;
-      setCurrentTrack(track);
-      setIsPlaying(true);
-      if (trackList.length > 0) setQueue(trackList);
-      audio.load(track.audioUrl);
-    },
-    [currentTrack, isPlaying, audio]
-  );
+    }
+    playStartRef.current = Date.now();
+
+    if (currentTrack?.id === track.id) {
+      if (isPlaying) { audio.pause(); setIsPlaying(false); }
+      else { audio.play(); setIsPlaying(true); }
+      return;
+    }
+    if (!track.audioUrl) return;
+    setCurrentTrack(track);
+    setIsPlaying(true);
+    if (trackList.length > 0) setQueue(trackList);
+    audio.load(track.audioUrl);
+  }, [currentTrack, isPlaying, audio, user, userDoc]);
 
   const handleNext = useCallback(() => {
     const q = queue.length > 0 ? queue : allSongs;
-    const idx = q.findIndex((t) => t.id === currentTrack?.id);
-    const next = q[(idx + 1) % q.length];
+    let next;
+    if (playbackSettings.shuffle) {
+      const others = q.filter((t) => t.id !== currentTrack?.id);
+      next = others[Math.floor(Math.random() * others.length)] || q[0];
+    } else {
+      const idx = q.findIndex((t) => t.id === currentTrack?.id);
+      next = q[(idx + 1) % q.length];
+    }
     if (next) playTrack(next, q);
-  }, [currentTrack, queue, allSongs, playTrack]);
+  }, [currentTrack, queue, allSongs, playTrack, playbackSettings]);
 
   const handlePrev = useCallback(() => {
     if (audio.progress > 3) { audio.seek(0); return; }
@@ -977,19 +1368,20 @@ export default function Musify() {
     if (prev) playTrack(prev, q);
   }, [currentTrack, queue, allSongs, playTrack, audio]);
 
+  const handleShuffleToggle = () => handleSaveSettings({ ...playbackSettings, shuffle: !playbackSettings.shuffle });
+  const handleRepeatToggle = () => {
+    const modes = ["off", "all", "one"];
+    const next = modes[(modes.indexOf(playbackSettings.repeat) + 1) % modes.length];
+    handleSaveSettings({ ...playbackSettings, repeat: next });
+  };
+
   // ── Like ──
   const handleLike = async (track) => {
     const next = new Set(likedIds);
     let nextArr;
-    if (next.has(track.id)) {
-      next.delete(track.id);
-      nextArr = likedTracks.filter((t) => t.id !== track.id);
-    } else {
-      next.add(track.id);
-      nextArr = [...likedTracks, track];
-    }
-    setLikedIds(next);
-    setLikedTracksArr(nextArr);
+    if (next.has(track.id)) { next.delete(track.id); nextArr = likedTracks.filter((t) => t.id !== track.id); }
+    else { next.add(track.id); nextArr = [...likedTracks, track]; }
+    setLikedIds(next); setLikedTracksArr(nextArr);
     if (user) await saveUserLiked(user.uid, nextArr);
   };
 
@@ -1005,14 +1397,11 @@ export default function Musify() {
   const handleAddToExisting = async (plId, track) => {
     const updated = userPlaylists.map((pl) => {
       if (pl.id !== plId) return pl;
-      const already = pl.songs?.some((s) => s.id === track.id);
-      if (already) return pl;
+      if (pl.songs?.some((s) => s.id === track.id)) return pl;
       return { ...pl, songs: [...(pl.songs || []), track] };
     });
     setUserPlaylists(updated);
-    if (user) {
-      await updateDoc(doc(db, "users", user.uid), { playlists: updated });
-    }
+    if (user) await updateDoc(doc(db, "users", user.uid), { playlists: updated });
     setAddToPlaylistTrack(null);
   };
 
@@ -1028,23 +1417,16 @@ export default function Musify() {
     track, index: i, isPlaying, isCurrent: currentTrack?.id === track.id,
     onPlay: () => playTrack(track, list),
     liked: likedIds.has(track.id), onLike: () => handleLike(track),
-    isMobile,
-    onAddToPlaylist: (t) => setAddToPlaylistTrack(t),
+    isMobile, onAddToPlaylist: (t) => setAddToPlaylistTrack(t),
   });
 
   const searchResults = search.trim()
-    ? allSongs.filter(
-        (s) =>
-          s.title?.toLowerCase().includes(search.toLowerCase()) ||
-          s.artist?.toLowerCase().includes(search.toLowerCase()) ||
-          (s.album || "").toLowerCase().includes(search.toLowerCase())
-      )
+    ? allSongs.filter((s) => s.title?.toLowerCase().includes(search.toLowerCase()) || s.artist?.toLowerCase().includes(search.toLowerCase()) || (s.album || "").toLowerCase().includes(search.toLowerCase()))
     : [];
 
   const adminPlaylistSongs = (plId) => allSongs.filter((s) => s.playlist === plId);
   const mobilePad = currentTrack ? 168 : 72;
 
-  // ── Loading screens ──
   const Spinner = ({ label = "musify" }) => (
     <div style={{ minHeight: "100vh", background: "#090912", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 28 }}>{label}</div>
@@ -1055,18 +1437,12 @@ export default function Musify() {
   if (!user) return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
   if (dataLoading) return <Spinner label="Loading music…" />;
 
-  // ── Main UI ──
   return (
     <div style={{ display: "flex", height: "100vh", background: "#090912", fontFamily: "'Segoe UI', sans-serif", color: "#f0f0f0", overflow: "hidden" }}>
 
       {!isMobile && (
-        <Sidebar
-          view={view} setView={setView}
-          allPlaylists={allPlaylists}
-          userPlaylists={userPlaylists}
-          selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist}
-          user={user} onLogout={handleLogout}
-        />
+        <Sidebar view={view} setView={setView} allPlaylists={allPlaylists} userPlaylists={userPlaylists}
+          selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} user={user} onLogout={handleLogout} />
       )}
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: isMobile ? mobilePad : 110 }}>
@@ -1074,19 +1450,18 @@ export default function Musify() {
         {isMobile && (
           <div style={{ padding: "18px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 26, letterSpacing: -0.5 }}>musify</div>
-            <button onClick={handleLogout} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 12 }}>Logout</button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setView("settings")} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18 }}>⚙️</button>
+              <button onClick={handleLogout} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 12 }}>Logout</button>
+            </div>
           </div>
         )}
 
-        {/* ── HOME ── */}
+        {/* HOME */}
         {view === "home" && (
           <div style={{ padding: isMobile ? "12px 16px" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>{getGreeting()} 🎵</h2>
-            <p style={{ color: "#555", fontSize: 13, marginBottom: 28, marginTop: 0 }}>
-              Welcome back, {user.displayName || user.email || user.phoneNumber}
-            </p>
-
-            {/* All songs */}
+            <p style={{ color: "#555", fontSize: 13, marginBottom: 28, marginTop: 0 }}>Welcome back, {user.displayName || user.email || user.phoneNumber}</p>
             {allSongs.filter((t) => t.audioUrl).length > 0 && (
               <div style={{ marginBottom: 32 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px" }}>🎵 All Songs</h3>
@@ -1097,8 +1472,6 @@ export default function Musify() {
                 </div>
               </div>
             )}
-
-            {/* Admin playlists */}
             {allPlaylists.map((pl) => {
               const songs = adminPlaylistSongs(pl.id).filter((t) => t.audioUrl);
               if (songs.length === 0) return null;
@@ -1116,42 +1489,40 @@ export default function Musify() {
                 </div>
               );
             })}
-
             {allSongs.length === 0 && (
               <div style={{ color: "#444", textAlign: "center", marginTop: 60 }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>🎵</div>
-                <div>No songs yet. Add songs to your Firestore <code>songs</code> collection.</div>
+                <div>No songs yet. {isAdmin(user) ? "Go to Admin Panel to add songs." : "Ask an admin to add songs."}</div>
               </div>
             )}
           </div>
         )}
 
-        {/* ── LIBRARY ── */}
+        {/* LIBRARY */}
         {view === "library" && (
           <div style={{ padding: isMobile ? "12px 16px" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, marginTop: 0 }}>Your Library</h2>
             <div style={{ marginBottom: 28 }}>
               <div style={{ color: "#888", fontSize: 12, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>MY PLAYLISTS</div>
-              {userPlaylists.length === 0 ? (
-                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, padding: "24px 20px", textAlign: "center" }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🎵</div>
-                  <div style={{ color: "#555", fontSize: 13 }}>No playlists yet</div>
-                  <div style={{ color: "#444", fontSize: 12, marginTop: 4 }}>Tap ⋮ on any song to create one</div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {userPlaylists.map((pl) => (
-                    <div key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }}
-                      style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🎵</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: "#efefef", fontWeight: 600, fontSize: 14 }}>{pl.name}</div>
-                        <div style={{ color: "#555", fontSize: 12, marginTop: 2 }}>{pl.songs?.length || 0} songs</div>
+              {userPlaylists.length === 0
+                ? <div style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, padding: "24px 20px", textAlign: "center" }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>🎵</div>
+                    <div style={{ color: "#555", fontSize: 13 }}>No playlists yet</div>
+                    <div style={{ color: "#444", fontSize: 12, marginTop: 4 }}>Tap ⋮ on any song to create one</div>
+                  </div>
+                : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {userPlaylists.map((pl) => (
+                      <div key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }}
+                        style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🎵</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: "#efefef", fontWeight: 600, fontSize: 14 }}>{pl.name}</div>
+                          <div style={{ color: "#555", fontSize: 12, marginTop: 2 }}>{pl.songs?.length || 0} songs</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+              }
             </div>
             <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 20 }}>
               <div style={{ color: "#888", fontSize: 12, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>SAVED</div>
@@ -1166,7 +1537,7 @@ export default function Musify() {
           </div>
         )}
 
-        {/* ── LIKED ── */}
+        {/* LIKED */}
         {view === "liked" && (
           <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, marginTop: 0, padding: isMobile ? "0 16px" : 0 }}>♥ Liked Songs</h2>
@@ -1177,7 +1548,7 @@ export default function Musify() {
           </div>
         )}
 
-        {/* ── SEARCH ── */}
+        {/* SEARCH */}
         {view === "search" && (
           <div style={{ padding: isMobile ? "12px 16px" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 16, marginTop: 0 }}>Search</h2>
@@ -1207,86 +1578,95 @@ export default function Musify() {
           </div>
         )}
 
-        {/* ── ADMIN PLAYLIST ── */}
-        {view === "playlist" && selectedPlaylist && (
-          <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
-            {(() => {
-              const pl = allPlaylists.find((p) => p.id === selectedPlaylist);
-              const songs = adminPlaylistSongs(selectedPlaylist);
-              return (
-                <>
-                  <div style={{ padding: isMobile ? "0 16px 16px" : "0 0 20px" }}>
-                    <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>📋 {pl?.name}</h2>
-                    <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
-                    {songs.length > 0 && (
-                      <button onClick={() => playTrack(songs[0], songs)} style={{ marginTop: 14, background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>
-                    )}
-                  </div>
-                  {songs.length === 0
-                    ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs in this playlist.</div>
-                    : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)
-                  }
-                </>
-              );
-            })()}
-          </div>
+        {/* ADMIN PLAYLIST */}
+        {view === "playlist" && selectedPlaylist && (() => {
+          const pl = allPlaylists.find((p) => p.id === selectedPlaylist);
+          const songs = adminPlaylistSongs(selectedPlaylist);
+          return (
+            <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
+              <div style={{ padding: isMobile ? "0 16px 16px" : "0 0 20px" }}>
+                <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>📋 {pl?.name}</h2>
+                <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
+                {songs.length > 0 && <button onClick={() => playTrack(songs[0], songs)} style={{ marginTop: 14, background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>}
+              </div>
+              {songs.length === 0 ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs in this playlist.</div>
+                : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)}
+            </div>
+          );
+        })()}
+
+        {/* USER PLAYLIST */}
+        {view === "userplaylist" && selectedPlaylist && (() => {
+          const pl = userPlaylists.find((p) => p.id === selectedPlaylist);
+          if (!pl) return null;
+          const songs = pl.songs || [];
+          return (
+            <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
+              <div style={{ padding: isMobile ? "0 16px 16px" : "0 0 20px" }}>
+                <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🎵 {pl.name}</h2>
+                <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
+                <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                  {songs.length > 0 && <button onClick={() => playTrack(songs[0], songs)} style={{ background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>}
+                  <button onClick={() => handleDeleteUserPlaylist(pl.id)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 24, color: "#e8435a", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "10px 18px", cursor: "pointer" }}>🗑 Delete</button>
+                </div>
+              </div>
+              {songs.length === 0 ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs yet. Tap ⋮ on any song to add here.</div>
+                : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)}
+            </div>
+          );
+        })()}
+
+        {/* PROFILE */}
+        {view === "profile" && (
+          <ProfilePage user={user} userDoc={userDoc}
+            onUpdate={(updates) => { setUserDoc((d) => ({ ...d, ...updates })); }}
+            isMobile={isMobile} />
         )}
 
-        {/* ── USER PLAYLIST ── */}
-        {view === "userplaylist" && selectedPlaylist && (
-          <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
-            {(() => {
-              const pl = userPlaylists.find((p) => p.id === selectedPlaylist);
-              if (!pl) return null;
-              const songs = pl.songs || [];
-              return (
-                <>
-                  <div style={{ padding: isMobile ? "0 16px 16px" : "0 0 20px" }}>
-                    <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🎵 {pl.name}</h2>
-                    <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
-                    <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-                      {songs.length > 0 && (
-                        <button onClick={() => playTrack(songs[0], songs)} style={{ background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>
-                      )}
-                      <button onClick={() => handleDeleteUserPlaylist(pl.id)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 24, color: "#e8435a", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "10px 18px", cursor: "pointer" }}>🗑 Delete</button>
-                    </div>
-                  </div>
-                  {songs.length === 0
-                    ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs yet. Tap ⋮ on any song to add here.</div>
-                    : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)
-                  }
-                </>
-              );
-            })()}
+        {/* SETTINGS */}
+        {view === "settings" && (
+          <SettingsPage settings={playbackSettings} onSave={handleSaveSettings} audio={audio} isMobile={isMobile} />
+        )}
+
+        {/* ADMIN */}
+        {view === "admin" && isAdmin(user) && (
+          <AdminPanel
+            allSongs={allSongs} allPlaylists={allPlaylists}
+            onSongAdded={(song) => setAllSongs((prev) => [...prev, song].sort((a, b) => a.order - b.order))}
+            onSongDeleted={(id) => setAllSongs((prev) => prev.filter((s) => s.id !== id))}
+            isMobile={isMobile}
+          />
+        )}
+
+        {/* Non-admin trying to access admin */}
+        {view === "admin" && !isAdmin(user) && (
+          <div style={{ padding: "28px 32px", textAlign: "center", color: "#444" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🚫</div>
+            <div>Admin access only.</div>
           </div>
         )}
       </div>
 
       <PlayerBar
         track={currentTrack} isPlaying={isPlaying}
-        onToggle={() => {
-          if (!currentTrack) return;
-          if (isPlaying) { audio.pause(); setIsPlaying(false); }
-          else { audio.play(); setIsPlaying(true); }
-        }}
+        onToggle={() => { if (!currentTrack) return; if (isPlaying) { audio.pause(); setIsPlaying(false); } else { audio.play(); setIsPlaying(true); } }}
         progress={audio.progress} duration={audio.duration}
         onSeek={audio.seek} onNext={handleNext} onPrev={handlePrev}
         volume={audio.volume} onVolume={audio.setVol}
         liked={currentTrack ? likedIds.has(currentTrack.id) : false}
         onLike={() => currentTrack && handleLike(currentTrack)}
         isMobile={isMobile}
+        shuffle={playbackSettings.shuffle} repeat={playbackSettings.repeat}
+        onShuffleToggle={handleShuffleToggle} onRepeatToggle={handleRepeatToggle}
       />
 
-      {isMobile && <BottomNav view={view} setView={setView} />}
+      {isMobile && <BottomNav view={view} setView={setView} user={user} />}
 
       {addToPlaylistTrack && (
-        <AddToPlaylistModal
-          track={addToPlaylistTrack}
-          userPlaylists={userPlaylists}
+        <AddToPlaylistModal track={addToPlaylistTrack} userPlaylists={userPlaylists}
           onAdd={(plId) => handleAddToExisting(plId, addToPlaylistTrack)}
           onCreateAndAdd={handleCreateAndAdd}
-          onClose={() => setAddToPlaylistTrack(null)}
-        />
+          onClose={() => setAddToPlaylistTrack(null)} />
       )}
     </div>
   );

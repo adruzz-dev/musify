@@ -637,7 +637,7 @@ function AdminPanel({ songs, playlists, onSave, onBack, cloudConfig, setCloudCon
 
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function Musify() {
-  const [route, setRoute] = useState(window.location.hash === "#/admin" ? "admin" : "app");
+  const [route, setRoute] = useState(window.location.hash === "#admin" ? "admin" : "app");
   const [view, setView] = useState("home");
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -663,7 +663,7 @@ export default function Musify() {
 
   // Detect /admin route via hash
   useEffect(() => {
-    const onHash = () => setRoute(window.location.hash === "#/admin" ? "admin" : "app");
+    const onHash = () => setRoute(window.location.hash === "#admin" ? "admin" : "app");
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);

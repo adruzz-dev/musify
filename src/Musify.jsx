@@ -12,7 +12,7 @@ const FEATURED_PLAYLIST_ID = "1282516355"; // Top Hits playlist
 
 // Deezer — no key needed, uses CORS proxy
 const deezerFetch = async (path) => {
-  const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.deezer.com${path}`)}`);
+  const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(`https://api.deezer.com${path}`)}`);
   return res.json();
 };
 

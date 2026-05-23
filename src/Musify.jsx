@@ -3,12 +3,11 @@ import { initializeApp } from "firebase/app";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
   signInWithPopup, GoogleAuthProvider, sendEmailVerification,
-  onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber,
+  onAuthStateChanged, signOut,
   updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential,
 } from "firebase/auth";
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove,
-  collection, getDocs, orderBy, query, addDoc, deleteDoc,
 } from "firebase/firestore";
 import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL,
@@ -34,9 +33,28 @@ const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN PASSWORD CONFIG
+// !! EDIT YOUR SONGS HERE !!
+// Add as many songs as you want with Cloudinary URLs
 // ─────────────────────────────────────────────────────────────────────────────
-const ADMIN_PASSWORD = "adarsh@12345";
+const SONGS = [
+  {
+    id: "1",
+    title: "Song Title 1",
+    artist: "Artist Name",
+    album: "Album Name",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/YOUR_AUDIO_FILE_1.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/YOUR_COVER_1.jpg",
+  },
+  {
+    id: "2",
+    title: "Song Title 2",
+    artist: "Artist Name",
+    album: "Album Name",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/YOUR_AUDIO_FILE_2.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/YOUR_COVER_2.jpg",
+  },
+  // Add more songs below this line...
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIRESTORE HELPERS
@@ -50,7 +68,6 @@ const createUserDoc = async (uid, data) => {
   await setDoc(doc(db, "users", uid), {
     name: data.name || "",
     email: data.email || "",
-    phone: data.phone || "",
     avatarUrl: "",
     playlists: [],
     likedSongs: [],
@@ -67,18 +84,6 @@ const saveUserPlaylist = async (uid, playlist) =>
 
 const deleteUserPlaylist = async (uid, playlist) =>
   updateDoc(doc(db, "users", uid), { playlists: arrayRemove(playlist) });
-
-const fetchSongs = async () => {
-  const q = query(collection(db, "songs"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-};
-
-const fetchPlaylists = async () => {
-  const q = query(collection(db, "playlists"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UTILS
@@ -111,15 +116,13 @@ function generateId() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AUDIO PLAYER HOOK  (with crossfade & EQ support)
+// AUDIO PLAYER HOOK
 // ─────────────────────────────────────────────────────────────────────────────
 function useAudioPlayer(onEnded, playbackSettings) {
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
-  const sourceRef = useRef(null);
   const gainRef = useRef(null);
   const eqBandsRef = useRef([]);
-  const crossfadeTimerRef = useRef(null);
   const sleepTimerRef = useRef(null);
 
   const [progress, setProgress] = useState(0);
@@ -133,7 +136,6 @@ function useAudioPlayer(onEnded, playbackSettings) {
     const a = new Audio();
     a.volume = volume;
     audioRef.current = a;
-
     a.addEventListener("ended", () => onEnded?.());
     a.addEventListener("timeupdate", () => {
       setProgress(a.currentTime);
@@ -147,10 +149,8 @@ function useAudioPlayer(onEnded, playbackSettings) {
       }
     });
     a.addEventListener("loadedmetadata", () => setDuration(a.duration));
-
     return () => {
       a.pause();
-      clearTimeout(crossfadeTimerRef.current);
       clearTimeout(sleepTimerRef.current);
     };
   }, []);
@@ -160,11 +160,9 @@ function useAudioPlayer(onEnded, playbackSettings) {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       audioCtxRef.current = ctx;
       const src = ctx.createMediaElementSource(audioRef.current);
-      sourceRef.current = src;
       const gain = ctx.createGain();
       gainRef.current = gain;
       gain.gain.value = volume;
-
       const bands = [60, 250, 1000, 4000, 12000].map((freq) => {
         const f = ctx.createBiquadFilter();
         f.type = "peaking";
@@ -189,8 +187,7 @@ function useAudioPlayer(onEnded, playbackSettings) {
 
   const load = useCallback((url) => {
     if (!audioRef.current) return;
-    if (audioCtxRef.current && audioCtxRef.current.state === "suspended")
-      audioCtxRef.current.resume();
+    if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
     if (gainRef.current) gainRef.current.gain.value = volume;
     audioRef.current.src = url;
     audioRef.current.load();
@@ -246,6 +243,7 @@ function CoverArt({ cover, size = 48, title, radius = 8 }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle }) {
   const pct = `${(progress / (duration || 1)) * 100}%`;
+
   const bar = (
     <div onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onSeek((e.clientX - r.left) / r.width); }}
       style={{ flex: 1, height: isMobile ? 3 : 4, background: "rgba(255,255,255,0.1)", borderRadius: 2, cursor: "pointer" }}>
@@ -316,7 +314,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
 // ─────────────────────────────────────────────────────────────────────────────
 // SIDEBAR
 // ─────────────────────────────────────────────────────────────────────────────
-function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist, setSelectedPlaylist, user, onLogout }) {
+function Sidebar({ view, setView, userPlaylists, selectedPlaylist, setSelectedPlaylist, user, onLogout }) {
   const nav = (id, label, icon) => (
     <button key={id} onClick={() => setView(id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: view === id ? "rgba(232,67,90,0.13)" : "none", border: "none", borderRadius: 8, cursor: "pointer", padding: "9px 14px", color: view === id ? "#e8435a" : "#777", fontFamily: "inherit", fontSize: 13, fontWeight: 600 }}>
       <span style={{ fontSize: 15 }}>{icon}</span> {label}
@@ -332,22 +330,12 @@ function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist,
       {nav("profile", "Profile", "👤")}
       {nav("settings", "Settings", "⚙️")}
 
-      {allPlaylists.length > 0 && (
-        <>
-          <div style={{ margin: "14px 0 6px", paddingLeft: 14, color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>PLAYLISTS</div>
-          {allPlaylists.map((pl) => (
-            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }} style={{ background: view === "playlist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none", border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px", color: view === "playlist" && selectedPlaylist === pl.id ? "#ccc" : "#666", fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left" }}>
-              📋 {pl.name}
-            </button>
-          ))}
-        </>
-      )}
-
       {userPlaylists.length > 0 && (
         <>
           <div style={{ margin: "14px 0 6px", paddingLeft: 14, color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>MY PLAYLISTS</div>
           {userPlaylists.map((pl) => (
-            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }} style={{ background: view === "userplaylist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none", border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px", color: view === "userplaylist" && selectedPlaylist === pl.id ? "#ccc" : "#666", fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left" }}>
+            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }}
+              style={{ background: view === "userplaylist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none", border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px", color: view === "userplaylist" && selectedPlaylist === pl.id ? "#ccc" : "#666", fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left" }}>
               🎵 {pl.name}
             </button>
           ))}
@@ -355,7 +343,7 @@ function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist,
       )}
 
       <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-        <div style={{ paddingLeft: 14, color: "#555", fontSize: 11, marginBottom: 8 }}>👤 {user?.displayName || user?.email || user?.phoneNumber}</div>
+        <div style={{ paddingLeft: 14, color: "#555", fontSize: 11, marginBottom: 8 }}>👤 {user?.displayName || user?.email}</div>
         <button onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontFamily: "inherit", fontSize: 12, padding: "8px 14px", width: "100%", textAlign: "left" }}>🚪 Logout</button>
       </div>
     </div>
@@ -365,7 +353,7 @@ function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist,
 // ─────────────────────────────────────────────────────────────────────────────
 // BOTTOM NAV
 // ─────────────────────────────────────────────────────────────────────────────
-function BottomNav({ view, setView, user }) {
+function BottomNav({ view, setView }) {
   const items = [
     { id: "home", label: "Home", icon: "🏠" },
     { id: "search", label: "Search", icon: "🔍" },
@@ -477,12 +465,14 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18 }}>✕</button>
         </div>
         <div style={{ color: "#666", fontSize: 12, marginBottom: 14 }}>"{track.title}"</div>
+
         {userPlaylists.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>YOUR PLAYLISTS</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
               {userPlaylists.map((pl) => (
-                <div key={pl.id} onClick={() => onAdd(pl.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div key={pl.id} onClick={() => onAdd(pl.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <span style={{ fontSize: 16 }}>🎵</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: "#efefef", fontSize: 13, fontWeight: 600 }}>{pl.name}</div>
@@ -494,7 +484,8 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
             </div>
           </div>
         )}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 14 }}>
+
+        <div style={{ borderTop: userPlaylists.length > 0 ? "1px solid rgba(255,255,255,0.06)" : "none", paddingTop: userPlaylists.length > 0 ? 14 : 0 }}>
           <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>CREATE NEW PLAYLIST</div>
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Playlist name…"
             style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
@@ -503,57 +494,6 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
             ➕ Create & Add
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN PASSWORD MODAL
-// ─────────────────────────────────────────────────────────────────────────────
-function AdminPasswordModal({ onSuccess, onClose }) {
-  const [pw, setPw] = useState("");
-  const [err, setErr] = useState("");
-
-  const handleSubmit = () => {
-    if (pw === ADMIN_PASSWORD) {
-      onSuccess();
-    } else {
-      setErr("Wrong password. Access denied.");
-      setPw("");
-    }
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: "#141420", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 20, padding: 32, width: "100%", maxWidth: 360 }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>🛡️</div>
-          <div style={{ color: "#efefef", fontWeight: 800, fontSize: 18 }}>Admin Access</div>
-          <div style={{ color: "#555", fontSize: 13, marginTop: 6 }}>Enter the admin password to continue</div>
-        </div>
-        {err && (
-          <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 13, marginBottom: 16, textAlign: "center" }}>{err}</div>
-        )}
-        <input
-          type="password"
-          value={pw}
-          onChange={(e) => { setPw(e.target.value); setErr(""); }}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          placeholder="Password"
-          autoFocus
-          style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", color: "#f0f0f0", fontSize: 15, outline: "none", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 14, letterSpacing: 2 }}
-        />
-        <button
-          onClick={handleSubmit}
-          style={{ width: "100%", background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: "pointer", marginBottom: 10 }}>
-          Unlock Admin Panel
-        </button>
-        <button
-          onClick={onClose}
-          style={{ width: "100%", background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, color: "#555", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "11px 0", cursor: "pointer" }}>
-          Cancel
-        </button>
       </div>
     </div>
   );
@@ -616,9 +556,9 @@ function ProfilePage({ user, userDoc, onUpdate, isMobile }) {
   };
 
   const isGoogle = user?.providerData?.some((p) => p.providerId === "google.com");
-  const isPhone = !!user?.phoneNumber;
 
   const inp = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "11px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+
   const section = (title, children) => (
     <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
       <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>{title}</div>
@@ -651,7 +591,8 @@ function ProfilePage({ user, userDoc, onUpdate, isMobile }) {
               <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" style={inp} />
             </div>
           </div>
-          <button onClick={handleSaveProfile} disabled={saving} style={{ background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer" }}>
+          <button onClick={handleSaveProfile} disabled={saving}
+            style={{ background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer" }}>
             {saving ? "Saving…" : "Save Profile"}
           </button>
         </div>
@@ -677,7 +618,6 @@ function ProfilePage({ user, userDoc, onUpdate, isMobile }) {
           {[
             { icon: "✉️", label: "Email", value: user?.email || "—", linked: !!user?.email },
             { icon: "🔵", label: "Google", value: isGoogle ? "Connected" : "Not linked", linked: isGoogle },
-            { icon: "📱", label: "Phone", value: user?.phoneNumber || "Not linked", linked: !!user?.phoneNumber },
           ].map((item) => (
             <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
               <span style={{ fontSize: 18 }}>{item.icon}</span>
@@ -691,12 +631,13 @@ function ProfilePage({ user, userDoc, onUpdate, isMobile }) {
         </div>
       ))}
 
-      {!isGoogle && !isPhone && section("CHANGE PASSWORD", (
+      {!isGoogle && section("CHANGE PASSWORD", (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input type="password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} placeholder="Current password" style={inp} />
           <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="New password" style={inp} />
           <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm new password" style={inp} />
-          <button onClick={handleChangePassword} disabled={saving} style={{ background: "rgba(232,67,90,0.15)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 10, color: "#e8435a", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer" }}>
+          <button onClick={handleChangePassword} disabled={saving}
+            style={{ background: "rgba(232,67,90,0.15)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 10, color: "#e8435a", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer" }}>
             {saving ? "Updating…" : "Change Password"}
           </button>
         </div>
@@ -822,7 +763,8 @@ function SettingsPage({ settings, onSave, audio, isMobile }) {
         <div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
             {[0, 15, 30, 45, 60, 90].map((m) => (
-              <button key={m} onClick={() => { update("sleepTimer", m); audio.setSleepTimer(m); }} style={{ background: s.sleepTimer === m ? "#e8435a" : "rgba(255,255,255,0.07)", border: "none", borderRadius: 20, color: s.sleepTimer === m ? "#fff" : "#888", fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "6px 14px", cursor: "pointer" }}>
+              <button key={m} onClick={() => { update("sleepTimer", m); audio.setSleepTimer(m); }}
+                style={{ background: s.sleepTimer === m ? "#e8435a" : "rgba(255,255,255,0.07)", border: "none", borderRadius: 20, color: s.sleepTimer === m ? "#fff" : "#888", fontFamily: "inherit", fontSize: 11, fontWeight: 700, padding: "6px 14px", cursor: "pointer" }}>
                 {m === 0 ? "Off" : `${m}m`}
               </button>
             ))}
@@ -830,7 +772,8 @@ function SettingsPage({ settings, onSave, audio, isMobile }) {
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input type="number" placeholder="Custom (min)" value={sleepInput} onChange={(e) => setSleepInput(e.target.value)} min={1} max={300}
               style={{ flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "9px 12px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit" }} />
-            <button onClick={() => { const m = parseInt(sleepInput); if (m > 0) { update("sleepTimer", m); audio.setSleepTimer(m); setSleepInput(""); } }} style={{ background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "9px 14px", cursor: "pointer" }}>Set</button>
+            <button onClick={() => { const m = parseInt(sleepInput); if (m > 0) { update("sleepTimer", m); audio.setSleepTimer(m); setSleepInput(""); } }}
+              style={{ background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 12, padding: "9px 14px", cursor: "pointer" }}>Set</button>
           </div>
           {s.sleepTimer > 0 && <div style={{ color: "#4caf50", fontSize: 12, marginTop: 8 }}>⏱ Playback will stop in {s.sleepTimer} minutes</div>}
         </div>
@@ -840,318 +783,17 @@ function SettingsPage({ settings, onSave, audio, isMobile }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLOUDINARY CONFIG
-// ─────────────────────────────────────────────────────────────────────────────
-const CLOUDINARY_CLOUD = "dasnicvlp";
-const CLOUDINARY_PRESET = "Musify";
-
-async function uploadToCloudinary(file, resourceType = "auto", onProgress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${resourceType}/upload`);
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("upload_preset", CLOUDINARY_PRESET);
-    fd.append("resource_type", resourceType);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      if (xhr.status === 200) {
-        resolve(JSON.parse(xhr.responseText).secure_url);
-      } else {
-        reject(new Error(`Cloudinary error: ${xhr.responseText}`));
-      }
-    };
-    xhr.onerror = () => reject(new Error("Network error during upload"));
-    xhr.send(fd);
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN PANEL
-// ─────────────────────────────────────────────────────────────────────────────
-function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobile }) {
-  const [tab, setTab] = useState("songs");
-  const [audioMode, setAudioMode] = useState("file");
-  const [coverMode, setCoverMode] = useState("file");
-  const [form, setForm] = useState({ title: "", artist: "", album: "", playlist: "", order: 0 });
-  const [audioFile, setAudioFile] = useState(null);
-  const [audioUrl, setAudioUrl] = useState("");
-  const [coverFile, setCoverFile] = useState(null);
-  const [coverUrl, setCoverUrl] = useState("");
-  const [coverPreview, setCoverPreview] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(0);
-  const [coverProgress, setCoverProgress] = useState(0);
-  const [uploadStep, setUploadStep] = useState("");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
-  const [plForm, setPlForm] = useState({ name: "", order: 0 });
-  const [plMsg, setPlMsg] = useState("");
-
-  const inp = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "11px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
-
-  const modeTab = (current, set, a, b) => (
-    <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 3, gap: 3, marginBottom: 10 }}>
-      {[[a, "📁 Upload File"], [b, "🔗 Paste URL"]].map(([val, label]) => (
-        <button key={val} onClick={() => set(val)} style={{ flex: 1, background: current === val ? "rgba(232,67,90,0.25)" : "none", border: current === val ? "1px solid rgba(232,67,90,0.35)" : "1px solid transparent", borderRadius: 6, color: current === val ? "#e8435a" : "#666", fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 0", cursor: "pointer" }}>
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-
-  const handleCoverFileChange = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    setCoverFile(f);
-    setCoverPreview(URL.createObjectURL(f));
-  };
-
-  const resetForm = () => {
-    setForm({ title: "", artist: "", album: "", playlist: "", order: 0 });
-    setAudioFile(null); setAudioUrl("");
-    setCoverFile(null); setCoverUrl(""); setCoverPreview("");
-    setAudioProgress(0); setCoverProgress(0); setUploadStep("");
-  };
-
-  const handleAddSong = async () => {
-    const hasAudio = audioMode === "file" ? !!audioFile : audioUrl.trim();
-    if (!form.title.trim()) { setErr("Song title is required."); return; }
-    if (!hasAudio) { setErr("Audio file or URL is required."); return; }
-    setUploading(true); setMsg(""); setErr("");
-    try {
-      let finalAudioUrl = "";
-      let finalCover = "";
-      if (audioMode === "file") {
-        setUploadStep("Uploading audio to Cloudinary…");
-        setAudioProgress(0);
-        finalAudioUrl = await uploadToCloudinary(audioFile, "video", setAudioProgress);
-      } else {
-        finalAudioUrl = audioUrl.trim();
-      }
-      if (coverMode === "file" && coverFile) {
-        setUploadStep("Uploading cover to Cloudinary…");
-        setCoverProgress(0);
-        finalCover = await uploadToCloudinary(coverFile, "image", setCoverProgress);
-      } else if (coverMode === "url" && coverUrl.trim()) {
-        finalCover = coverUrl.trim();
-      }
-      setUploadStep("Saving to Firestore…");
-      const docRef = await addDoc(collection(db, "songs"), {
-        title: form.title.trim(),
-        artist: form.artist.trim(),
-        album: form.album.trim(),
-        playlist: form.playlist,
-        order: Number(form.order),
-        audioUrl: finalAudioUrl,
-        cover: finalCover,
-        createdAt: Date.now(),
-      });
-      onSongAdded({ id: docRef.id, ...form, audioUrl: finalAudioUrl, cover: finalCover, order: Number(form.order) });
-      setMsg(`✅ "${form.title}" added successfully!`);
-      resetForm();
-    } catch (e) {
-      setErr(e.message || "Upload failed. Check your Cloudinary preset settings.");
-      setUploadStep("");
-    }
-    setUploading(false);
-  };
-
-  const handleDeleteSong = async (song) => {
-    if (!window.confirm(`Delete "${song.title}"?`)) return;
-    try {
-      await deleteDoc(doc(db, "songs", song.id));
-      onSongDeleted(song.id);
-    } catch (e) { setErr(e.message); }
-  };
-
-  const handleAddPlaylist = async () => {
-    if (!plForm.name.trim()) { setPlMsg("Name required."); return; }
-    try {
-      await addDoc(collection(db, "playlists"), { name: plForm.name.trim(), order: Number(plForm.order) });
-      setPlMsg(`✅ "${plForm.name}" playlist created!`);
-      setPlForm({ name: "", order: 0 });
-    } catch (e) { setPlMsg(e.message); }
-  };
-
-  const ProgressBar = ({ value, label }) => value > 0 && value < 100 ? (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", color: "#888", fontSize: 11, marginBottom: 4 }}>
-        <span>{label}</span><span>{value}%</span>
-      </div>
-      <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2 }}>
-        <div style={{ width: `${value}%`, height: "100%", background: "#e8435a", borderRadius: 2, transition: "width 0.2s" }} />
-      </div>
-    </div>
-  ) : null;
-
-  return (
-    <div style={{ padding: isMobile ? "12px 16px" : "28px 32px", maxWidth: 680 }}>
-      <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🛡️ Admin Panel</h2>
-      <p style={{ color: "#555", fontSize: 13, marginBottom: 20 }}>
-        Manage songs and playlists · Powered by <span style={{ color: "#e8435a", fontWeight: 700 }}>Cloudinary</span>
-      </p>
-      <div style={{ display: "flex", gap: 6, marginBottom: 22, background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 4 }}>
-        {[["songs", "🎵 Songs"], ["playlists", "📋 Playlists"]].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, background: tab === id ? "#e8435a" : "none", border: "none", borderRadius: 7, color: tab === id ? "#fff" : "#666", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "9px 0", cursor: "pointer" }}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "songs" && (
-        <>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
-            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 16 }}>ADD NEW SONG</div>
-            {msg && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.3)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 13, marginBottom: 14 }}>{msg}</div>}
-            {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 13, marginBottom: 14 }}>{err}</div>}
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 16 }}>
-              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Song title *" style={inp} />
-              <input value={form.artist} onChange={(e) => setForm({ ...form, artist: e.target.value })} placeholder="Artist" style={inp} />
-              <input value={form.album} onChange={(e) => setForm({ ...form, album: e.target.value })} placeholder="Album" style={inp} />
-              <select value={form.playlist} onChange={(e) => setForm({ ...form, playlist: e.target.value })} style={{ ...inp, cursor: "pointer" }}>
-                <option value="">No Playlist</option>
-                {allPlaylists.map((pl) => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
-              </select>
-              <input type="number" value={form.order} onChange={(e) => setForm({ ...form, order: +e.target.value })} placeholder="Sort order" style={inp} />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>AUDIO *</div>
-              {modeTab(audioMode, setAudioMode, "file", "url")}
-              {audioMode === "file" ? (
-                <label style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.04)", border: `1px dashed ${audioFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 8, background: audioFile ? "rgba(232,67,90,0.15)" : "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🎵</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: audioFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{audioFile ? audioFile.name : "Choose audio file"}</div>
-                    <div style={{ color: "#444", fontSize: 11, marginTop: 2 }}>MP3, WAV, OGG, FLAC · Uploaded to Cloudinary</div>
-                  </div>
-                  <input type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => setAudioFile(e.target.files[0])} />
-                </label>
-              ) : (
-                <input value={audioUrl} onChange={(e) => setAudioUrl(e.target.value)} placeholder="https://res.cloudinary.com/..." style={inp} />
-              )}
-              <ProgressBar value={audioProgress} label="Uploading audio…" />
-            </div>
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>COVER ART (optional)</div>
-              {modeTab(coverMode, setCoverMode, "file", "url")}
-              {coverMode === "file" ? (
-                <label style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.04)", border: `1px dashed ${coverFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "12px 16px", cursor: "pointer" }}>
-                  {coverPreview
-                    ? <img src={coverPreview} alt="cover preview" style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
-                    : <div style={{ width: 52, height: 52, borderRadius: 8, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>🖼️</div>
-                  }
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: coverFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{coverFile ? coverFile.name : "Choose cover image"}</div>
-                    <div style={{ color: "#444", fontSize: 11, marginTop: 2 }}>PNG, JPG, WebP · Uploaded to Cloudinary</div>
-                  </div>
-                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleCoverFileChange} />
-                </label>
-              ) : (
-                <div>
-                  <input value={coverUrl} onChange={(e) => { setCoverUrl(e.target.value); setCoverPreview(e.target.value); }} placeholder="https://res.cloudinary.com/..." style={{ ...inp, marginBottom: coverPreview ? 10 : 0 }} />
-                  {coverPreview && <img src={coverPreview} alt="cover preview" style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", marginTop: 8 }} onError={() => setCoverPreview("")} />}
-                </div>
-              )}
-              <ProgressBar value={coverProgress} label="Uploading cover…" />
-            </div>
-            {uploadStep && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 12, marginBottom: 12 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#e8435a" }} />
-                {uploadStep}
-              </div>
-            )}
-            <button onClick={handleAddSong} disabled={uploading} style={{ width: "100%", background: uploading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: uploading ? "not-allowed" : "pointer" }}>
-              {uploading ? "Uploading…" : "➕ Add Song"}
-            </button>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20 }}>
-            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>ALL SONGS ({allSongs.length})</div>
-            {allSongs.length === 0
-              ? <div style={{ color: "#444", fontSize: 13 }}>No songs yet.</div>
-              : <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 360, overflowY: "auto" }}>
-                  {allSongs.map((s) => (
-                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
-                      <CoverArt cover={s.cover} size={38} title={s.title} radius={6} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ color: "#efefef", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                        <div style={{ color: "#555", fontSize: 11 }}>{s.artist}{s.album ? ` · ${s.album}` : ""}</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {s.cover && <span style={{ color: "#4caf50", fontSize: 10, fontWeight: 700 }}>🖼</span>}
-                        {s.audioUrl && <span style={{ color: "#4caf50", fontSize: 10, fontWeight: 700 }}>🎵</span>}
-                        <button onClick={() => handleDeleteSong(s)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 6, color: "#e8435a", fontFamily: "inherit", fontSize: 11, padding: "4px 10px", cursor: "pointer" }}>🗑</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-            }
-          </div>
-        </>
-      )}
-
-      {tab === "playlists" && (
-        <div>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 16 }}>
-            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>CREATE PLAYLIST</div>
-            {plMsg && <div style={{ color: plMsg.startsWith("✅") ? "#4caf50" : "#e8435a", fontSize: 12, marginBottom: 10 }}>{plMsg}</div>}
-            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-              <input value={plForm.name} onChange={(e) => setPlForm({ ...plForm, name: e.target.value })} placeholder="Playlist name" style={inp} />
-              <input type="number" value={plForm.order} onChange={(e) => setPlForm({ ...plForm, order: +e.target.value })} placeholder="Order" style={{ ...inp, width: 80 }} />
-            </div>
-            <button onClick={handleAddPlaylist} style={{ background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer", width: "100%" }}>
-              ➕ Create Playlist
-            </button>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20 }}>
-            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>ALL PLAYLISTS ({allPlaylists.length})</div>
-            {allPlaylists.length === 0
-              ? <div style={{ color: "#444", fontSize: 13 }}>No playlists yet.</div>
-              : allPlaylists.map((pl) => (
-                  <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 20 }}>📋</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: "#efefef", fontSize: 13, fontWeight: 600 }}>{pl.name}</div>
-                      <div style={{ color: "#555", fontSize: 11 }}>Order: {pl.order}</div>
-                    </div>
-                  </div>
-                ))
-            }
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // AUTH SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 function AuthScreen({ onAuthSuccess }) {
-  const [method, setMethod] = useState("email");
   const [emailMode, setEmailMode] = useState("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [confirmResult, setConfirmResult] = useState(null);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const recaptchaRef = useRef(null);
-  const recaptchaVerifierRef = useRef(null);
-
-  useEffect(() => {
-    if (!recaptchaVerifierRef.current && recaptchaRef.current) {
-      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaRef.current, { size: "invisible" });
-    }
-  }, []);
 
   const inp = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 16px", color: "#f0f0f0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
 
@@ -1167,17 +809,29 @@ function AuthScreen({ onAuthSuccess }) {
     try {
       if (emailMode === "signup") {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), pw);
+        await updateProfile(cred.user, { displayName: name.trim() });
         await sendEmailVerification(cred.user);
         await createUserDoc(cred.user.uid, { name: name.trim(), email: email.trim() });
         setInfo("✉️ Verification email sent! Please verify then log in.");
         setEmailMode("login"); setName(""); setPw(""); setConfirmPw("");
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), pw);
-        if (!cred.user.emailVerified) { await signOut(auth); setErr("Verify your email first."); setLoading(false); return; }
+        if (!cred.user.emailVerified) {
+          await signOut(auth);
+          setErr("Please verify your email before logging in.");
+          setLoading(false);
+          return;
+        }
         onAuthSuccess(cred.user);
       }
     } catch (e) {
-      setErr(e.code === "auth/user-not-found" ? "No account with this email." : e.code === "auth/wrong-password" ? "Incorrect password." : e.code === "auth/email-already-in-use" ? "Email already registered." : "Something went wrong.");
+      setErr(
+        e.code === "auth/user-not-found" ? "No account with this email." :
+        e.code === "auth/wrong-password" ? "Incorrect password." :
+        e.code === "auth/email-already-in-use" ? "Email already registered." :
+        e.code === "auth/invalid-email" ? "Invalid email address." :
+        "Something went wrong. Please try again."
+      );
     }
     setLoading(false);
   };
@@ -1189,113 +843,65 @@ function AuthScreen({ onAuthSuccess }) {
       const existing = await getUserDoc(cred.user.uid);
       if (!existing) await createUserDoc(cred.user.uid, { name: cred.user.displayName, email: cred.user.email });
       onAuthSuccess(cred.user);
-    } catch { setErr("Google sign-in failed."); }
+    } catch { setErr("Google sign-in failed. Please try again."); }
     setLoading(false);
   };
-
-  const handleSendOtp = async () => {
-    setErr(""); setInfo("");
-    if (!phone.trim()) { setErr("Enter phone number with country code."); return; }
-    setLoading(true);
-    try {
-      if (!recaptchaVerifierRef.current) recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaRef.current, { size: "invisible" });
-      const result = await signInWithPhoneNumber(auth, phone.trim(), recaptchaVerifierRef.current);
-      setConfirmResult(result); setOtpSent(true); setInfo(`OTP sent to ${phone}`);
-    } catch (e) { setErr(e.message || "Failed to send OTP."); recaptchaVerifierRef.current = null; }
-    setLoading(false);
-  };
-
-  const handleVerifyOtp = async () => {
-    setErr(""); setInfo("");
-    if (!otp.trim()) { setErr("Enter the OTP."); return; }
-    setLoading(true);
-    try {
-      const cred = await confirmResult.confirm(otp.trim());
-      const existing = await getUserDoc(cred.user.uid);
-      if (!existing) await createUserDoc(cred.user.uid, { phone: cred.user.phoneNumber });
-      onAuthSuccess(cred.user);
-    } catch { setErr("Invalid OTP."); }
-    setLoading(false);
-  };
-
-  const methodTab = (id, label, icon) => (
-    <button onClick={() => { setMethod(id); setErr(""); setInfo(""); setOtpSent(false); setOtp(""); }} style={{ flex: 1, background: method === id ? "#e8435a" : "none", border: "none", borderRadius: 8, padding: "9px 0", cursor: "pointer", color: method === id ? "#fff" : "#666", fontFamily: "inherit", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-      <span>{icon}</span>{label}
-    </button>
-  );
 
   return (
     <div style={{ minHeight: "100vh", background: "#090912", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', sans-serif", padding: 16, backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,67,90,0.18) 0%, transparent 70%)" }}>
-      <div ref={recaptchaRef} />
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 38, letterSpacing: -1 }}>musify</div>
           <div style={{ color: "#444", fontSize: 13, marginTop: 6 }}>Your music, your world</div>
         </div>
+
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "30px 28px" }}>
-          <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 3, marginBottom: 22, gap: 3 }}>
-            {methodTab("email", "Email", "✉️")}
-            {methodTab("phone", "Phone", "📱")}
+          <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: 3, marginBottom: 20, gap: 2 }}>
+            {["login", "signup"].map((m) => (
+              <button key={m} onClick={() => { setEmailMode(m); setErr(""); setInfo(""); }}
+                style={{ flex: 1, background: emailMode === m ? "rgba(232,67,90,0.25)" : "none", border: emailMode === m ? "1px solid rgba(232,67,90,0.3)" : "1px solid transparent", borderRadius: 6, padding: "7px 0", cursor: "pointer", color: emailMode === m ? "#e8435a" : "#555", fontFamily: "inherit", fontSize: 12, fontWeight: 700 }}>
+                {m === "login" ? "Log In" : "Sign Up"}
+              </button>
+            ))}
           </div>
 
-          {method === "email" && (
-            <>
-              <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: 3, marginBottom: 20, gap: 2 }}>
-                {["login", "signup"].map((m) => (
-                  <button key={m} onClick={() => { setEmailMode(m); setErr(""); setInfo(""); }} style={{ flex: 1, background: emailMode === m ? "rgba(232,67,90,0.25)" : "none", border: emailMode === m ? "1px solid rgba(232,67,90,0.3)" : "1px solid transparent", borderRadius: 6, padding: "7px 0", cursor: "pointer", color: emailMode === m ? "#e8435a" : "#555", fontFamily: "inherit", fontSize: 12, fontWeight: 700 }}>
-                    {m === "login" ? "Log In" : "Sign Up"}
-                  </button>
-                ))}
-              </div>
-              {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
-              {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {emailMode === "signup" && <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={inp} />}
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" style={inp} />
-                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" style={inp} onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()} />
-                {emailMode === "signup" && <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm password" style={inp} />}
-                <button onClick={handleEmailAuth} disabled={loading} style={{ background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: loading ? "not-allowed" : "pointer", marginTop: 2 }}>
-                  {loading ? "Please wait…" : emailMode === "login" ? "Log In" : "Create Account"}
-                </button>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0" }}>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
-                <span style={{ color: "#444", fontSize: 12 }}>or continue with</span>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
-              </div>
-              <button onClick={handleGoogle} disabled={loading} style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#efefef", fontFamily: "inherit", fontWeight: 600, fontSize: 14, padding: "12px 0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
-                Continue with Google
-              </button>
-            </>
-          )}
+          {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
+          {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
 
-          {method === "phone" && (
-            <>
-              {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
-              {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
-              {!otpSent
-                ? <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div style={{ color: "#555", fontSize: 12 }}>Enter phone number with country code</div>
-                    <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 9876543210" style={inp} onKeyDown={(e) => e.key === "Enter" && handleSendOtp()} />
-                    <button onClick={handleSendOtp} disabled={loading} style={{ background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: loading ? "not-allowed" : "pointer" }}>
-                      {loading ? "Sending…" : "Send OTP"}
-                    </button>
-                  </div>
-                : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div style={{ color: "#555", fontSize: 12 }}>OTP sent to <span style={{ color: "#efefef" }}>{phone}</span></div>
-                    <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6-digit OTP" maxLength={6} style={{ ...inp, letterSpacing: 8, fontSize: 20, textAlign: "center" }} onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()} />
-                    <button onClick={handleVerifyOtp} disabled={loading} style={{ background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: loading ? "not-allowed" : "pointer" }}>
-                      {loading ? "Verifying…" : "Verify OTP"}
-                    </button>
-                    <button onClick={() => { setOtpSent(false); setOtp(""); setErr(""); setInfo(""); recaptchaVerifierRef.current = null; }} style={{ background: "none", border: "none", color: "#555", fontFamily: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
-                      ← Change number / Resend
-                    </button>
-                  </div>
-              }
-            </>
-          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {emailMode === "signup" && (
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={inp} />
+            )}
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" style={inp} />
+            <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" style={inp}
+              onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()} />
+            {emailMode === "signup" && (
+              <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm password" style={inp} />
+            )}
+            <button onClick={handleEmailAuth} disabled={loading}
+              style={{ background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: loading ? "not-allowed" : "pointer", marginTop: 2 }}>
+              {loading ? "Please wait…" : emailMode === "login" ? "Log In" : "Create Account"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0" }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+            <span style={{ color: "#444", fontSize: 12 }}>or continue with</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+          </div>
+
+          <button onClick={handleGoogle} disabled={loading}
+            style={{ width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#efefef", fontFamily: "inherit", fontWeight: 600, fontSize: 14, padding: "12px 0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <svg width="18" height="18" viewBox="0 0 48 48">
+              <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+              <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+              <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+              <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+            </svg>
+            Continue with Google
+          </button>
         </div>
+
         <div style={{ textAlign: "center", color: "#333", fontSize: 11, marginTop: 20 }}>musify • your personal music player</div>
       </div>
     </div>
@@ -1320,15 +926,11 @@ const DEFAULT_SETTINGS = {
 export default function Musify() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [dataLoading, setDataLoading] = useState(true);
   const [userDoc, setUserDoc] = useState(null);
 
   const [view, setView] = useState("home");
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [search, setSearch] = useState("");
-
-  const [allSongs, setAllSongs] = useState([]);
-  const [allPlaylists, setAllPlaylists] = useState([]);
 
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1340,10 +942,6 @@ export default function Musify() {
   const [userPlaylists, setUserPlaylists] = useState([]);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
 
-  // ── ADMIN STATE ──
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-
   const [playbackSettings, setPlaybackSettings] = useState(() => {
     try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("musify_settings") || "{}") }; }
     catch { return DEFAULT_SETTINGS; }
@@ -1353,38 +951,10 @@ export default function Musify() {
   const playStartRef = useRef(null);
   const artistCountRef = useRef({});
 
-  // ── HASH ROUTE: detect #admin on load and on hash change ──
-  useEffect(() => {
-    const checkHash = () => {
-      if (window.location.hash === "#admin") {
-        if (!adminUnlocked) {
-          setShowAdminModal(true);
-        } else {
-          setView("admin");
-        }
-      }
-    };
-    checkHash();
-    window.addEventListener("hashchange", checkHash);
-    return () => window.removeEventListener("hashchange", checkHash);
-  }, [adminUnlocked]);
-
-  const handleAdminPasswordSuccess = () => {
-    setAdminUnlocked(true);
-    setShowAdminModal(false);
-    setView("admin");
-    window.location.hash = "#admin";
-  };
-
-  const handleAdminModalClose = () => {
-    setShowAdminModal(false);
-    window.location.hash = "";
-  };
-
   const handleEnded = useCallback(() => {
     const s = playbackSettings;
     if (s.repeat === "one") { audio.seek(0); audio.play(); return; }
-    const q = queue.length > 0 ? queue : allSongs;
+    const q = queue.length > 0 ? queue : SONGS;
     let nextTrack;
     if (s.shuffle) {
       const others = q.filter((t) => t.id !== currentTrack?.id);
@@ -1395,39 +965,39 @@ export default function Musify() {
       nextTrack = q[(idx + 1) % q.length];
     }
     if (nextTrack) playTrack(nextTrack, q);
-  }, [currentTrack, queue, allSongs, playbackSettings]);
+  }, [currentTrack, queue, playbackSettings]);
 
   const audio = useAudioPlayer(handleEnded, playbackSettings);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        const isPhone = !!u.phoneNumber;
-        if (isPhone || u.emailVerified) {
-          setUser(u);
-          const data = await getUserDoc(u.uid);
-          if (data) {
-            setUserDoc(data);
-            setUserPlaylists(data.playlists || []);
-            const liked = data.likedSongs || [];
-            setLikedIds(new Set(liked.map((s) => s.id)));
-            setLikedTracksArr(liked);
-          }
-        } else { setUser(null); }
-      } else { setUser(null); }
+      if (u && u.emailVerified) {
+        setUser(u);
+        const data = await getUserDoc(u.uid);
+        if (data) {
+          setUserDoc(data);
+          setUserPlaylists(data.playlists || []);
+          const liked = data.likedSongs || [];
+          setLikedIds(new Set(liked.map((s) => s.id)));
+          setLikedTracksArr(liked);
+        }
+      } else if (u && u.providerData?.some(p => p.providerId === "google.com")) {
+        // Google users are always verified
+        setUser(u);
+        const data = await getUserDoc(u.uid);
+        if (data) {
+          setUserDoc(data);
+          setUserPlaylists(data.playlists || []);
+          const liked = data.likedSongs || [];
+          setLikedIds(new Set(liked.map((s) => s.id)));
+          setLikedTracksArr(liked);
+        }
+      } else {
+        setUser(null);
+      }
       setAuthLoading(false);
     });
     return unsub;
-  }, []);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [songs, playlists] = await Promise.all([fetchSongs(), fetchPlaylists()]);
-        setAllSongs(songs); setAllPlaylists(playlists);
-      } catch (e) { console.error(e); } finally { setDataLoading(false); }
-    };
-    load();
   }, []);
 
   const handleAuthSuccess = async (u) => {
@@ -1440,7 +1010,7 @@ export default function Musify() {
       setLikedIds(new Set(liked.map((s) => s.id)));
       setLikedTracksArr(liked);
     } else {
-      await createUserDoc(u.uid, { name: u.displayName || "", email: u.email || "", phone: u.phoneNumber || "" });
+      await createUserDoc(u.uid, { name: u.displayName || "", email: u.email || "" });
     }
   };
 
@@ -1448,7 +1018,6 @@ export default function Musify() {
     await signOut(auth);
     setUser(null); setCurrentTrack(null); setIsPlaying(false);
     setUserPlaylists([]); setLikedIds(new Set()); setLikedTracksArr([]);
-    setAdminUnlocked(false);
     audio.pause();
   };
 
@@ -1485,7 +1054,7 @@ export default function Musify() {
   }, [currentTrack, isPlaying, audio, user, userDoc]);
 
   const handleNext = useCallback(() => {
-    const q = queue.length > 0 ? queue : allSongs;
+    const q = queue.length > 0 ? queue : SONGS;
     let next;
     if (playbackSettings.shuffle) {
       const others = q.filter((t) => t.id !== currentTrack?.id);
@@ -1495,15 +1064,15 @@ export default function Musify() {
       next = q[(idx + 1) % q.length];
     }
     if (next) playTrack(next, q);
-  }, [currentTrack, queue, allSongs, playTrack, playbackSettings]);
+  }, [currentTrack, queue, playTrack, playbackSettings]);
 
   const handlePrev = useCallback(() => {
     if (audio.progress > 3) { audio.seek(0); return; }
-    const q = queue.length > 0 ? queue : allSongs;
+    const q = queue.length > 0 ? queue : SONGS;
     const idx = q.findIndex((t) => t.id === currentTrack?.id);
     const prev = q[(idx - 1 + q.length) % q.length];
     if (prev) playTrack(prev, q);
-  }, [currentTrack, queue, allSongs, playTrack, audio]);
+  }, [currentTrack, queue, playTrack, audio]);
 
   const handleShuffleToggle = () => handleSaveSettings({ ...playbackSettings, shuffle: !playbackSettings.shuffle });
   const handleRepeatToggle = () => {
@@ -1515,8 +1084,13 @@ export default function Musify() {
   const handleLike = async (track) => {
     const next = new Set(likedIds);
     let nextArr;
-    if (next.has(track.id)) { next.delete(track.id); nextArr = likedTracks.filter((t) => t.id !== track.id); }
-    else { next.add(track.id); nextArr = [...likedTracks, track]; }
+    if (next.has(track.id)) {
+      next.delete(track.id);
+      nextArr = likedTracks.filter((t) => t.id !== track.id);
+    } else {
+      next.add(track.id);
+      nextArr = [...likedTracks, track];
+    }
     setLikedIds(next); setLikedTracksArr(nextArr);
     if (user) await saveUserLiked(user.uid, nextArr);
   };
@@ -1556,28 +1130,34 @@ export default function Musify() {
   });
 
   const searchResults = search.trim()
-    ? allSongs.filter((s) => s.title?.toLowerCase().includes(search.toLowerCase()) || s.artist?.toLowerCase().includes(search.toLowerCase()) || (s.album || "").toLowerCase().includes(search.toLowerCase()))
+    ? SONGS.filter((s) =>
+        s.title?.toLowerCase().includes(search.toLowerCase()) ||
+        s.artist?.toLowerCase().includes(search.toLowerCase()) ||
+        (s.album || "").toLowerCase().includes(search.toLowerCase())
+      )
     : [];
 
-  const adminPlaylistSongs = (plId) => allSongs.filter((s) => s.playlist === plId);
   const mobilePad = currentTrack ? 168 : 72;
 
-  const Spinner = ({ label = "musify" }) => (
-    <div style={{ minHeight: "100vh", background: "#090912", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 28 }}>{label}</div>
-    </div>
-  );
+  if (authLoading)
+    return (
+      <div style={{ minHeight: "100vh", background: "#090912", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 28 }}>musify</div>
+      </div>
+    );
 
-  if (authLoading) return <Spinner />;
   if (!user) return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
-  if (dataLoading) return <Spinner label="Loading music…" />;
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "#090912", fontFamily: "'Segoe UI', sans-serif", color: "#f0f0f0", overflow: "hidden" }}>
 
       {!isMobile && (
-        <Sidebar view={view} setView={setView} allPlaylists={allPlaylists} userPlaylists={userPlaylists}
-          selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} user={user} onLogout={handleLogout} />
+        <Sidebar
+          view={view} setView={setView}
+          userPlaylists={userPlaylists}
+          selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist}
+          user={user} onLogout={handleLogout}
+        />
       )}
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: isMobile ? mobilePad : 110 }}>
@@ -1587,7 +1167,7 @@ export default function Musify() {
             <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 26, letterSpacing: -0.5 }}>musify</div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setView("settings")} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18 }}>⚙️</button>
-              <button onClick={handleLogout} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 12 }}>Logout</button>
+              <button onClick={handleLogout} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>Logout</button>
             </div>
           </div>
         )}
@@ -1596,38 +1176,23 @@ export default function Musify() {
         {view === "home" && (
           <div style={{ padding: isMobile ? "12px 16px" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>{getGreeting()} 🎵</h2>
-            <p style={{ color: "#555", fontSize: 13, marginBottom: 28, marginTop: 0 }}>Welcome back, {user.displayName || user.email || user.phoneNumber}</p>
-            {allSongs.filter((t) => t.audioUrl).length > 0 && (
+            <p style={{ color: "#555", fontSize: 13, marginBottom: 28, marginTop: 0 }}>
+              Welcome back, {user.displayName || user.email}
+            </p>
+
+            {SONGS.length > 0 ? (
               <div style={{ marginBottom: 32 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px" }}>🎵 All Songs</h3>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(148px,1fr))", gap: isMobile ? 10 : 14 }}>
-                  {allSongs.filter((t) => t.audioUrl).map((t) => (
-                    <SongCard key={t.id} track={t} isCurrent={currentTrack?.id === t.id} isPlaying={isPlaying} onClick={() => playTrack(t, allSongs)} isMobile={isMobile} />
+                  {SONGS.map((t) => (
+                    <SongCard key={t.id} track={t} isCurrent={currentTrack?.id === t.id} isPlaying={isPlaying} onClick={() => playTrack(t, SONGS)} isMobile={isMobile} />
                   ))}
                 </div>
               </div>
-            )}
-            {allPlaylists.map((pl) => {
-              const songs = adminPlaylistSongs(pl.id).filter((t) => t.audioUrl);
-              if (songs.length === 0) return null;
-              return (
-                <div key={pl.id} style={{ marginBottom: 32 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                    <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>📋 {pl.name}</h3>
-                    <button onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>See all →</button>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(148px,1fr))", gap: isMobile ? 10 : 14 }}>
-                    {songs.slice(0, isMobile ? 4 : 6).map((t) => (
-                      <SongCard key={t.id} track={t} isCurrent={currentTrack?.id === t.id} isPlaying={isPlaying} onClick={() => playTrack(t, songs)} isMobile={isMobile} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            {allSongs.length === 0 && (
+            ) : (
               <div style={{ color: "#444", textAlign: "center", marginTop: 60 }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>🎵</div>
-                <div>No songs yet. Visit <span style={{ color: "#e8435a" }}>musify-ashy.vercel.app/#admin</span> to add songs.</div>
+                <div>No songs yet. Add songs to the SONGS array in musify.jsx</div>
               </div>
             )}
           </div>
@@ -1640,12 +1205,15 @@ export default function Musify() {
             <div style={{ marginBottom: 28 }}>
               <div style={{ color: "#888", fontSize: 12, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>MY PLAYLISTS</div>
               {userPlaylists.length === 0
-                ? <div style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, padding: "24px 20px", textAlign: "center" }}>
+                ? (
+                  <div style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, padding: "24px 20px", textAlign: "center" }}>
                     <div style={{ fontSize: 28, marginBottom: 8 }}>🎵</div>
                     <div style={{ color: "#555", fontSize: 13 }}>No playlists yet</div>
                     <div style={{ color: "#444", fontSize: 12, marginTop: 4 }}>Tap ⋮ on any song to create one</div>
                   </div>
-                : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                )
+                : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {userPlaylists.map((pl) => (
                       <div key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }}
                         style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}>
@@ -1657,6 +1225,7 @@ export default function Musify() {
                       </div>
                     ))}
                   </div>
+                )
               }
             </div>
             <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 20 }}>
@@ -1694,17 +1263,10 @@ export default function Musify() {
               {searchResults.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, searchResults)} />)}
               {!search && (
                 <div>
-                  <div style={{ color: "#444", fontSize: 13, marginBottom: 16 }}>Browse by playlist</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {allPlaylists.map((pl) => (
-                      <div key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }}
-                        style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}>
-                        <div style={{ width: 44, height: 44, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📋</div>
-                        <div>
-                          <div style={{ color: "#efefef", fontWeight: 600, fontSize: 14 }}>{pl.name}</div>
-                          <div style={{ color: "#555", fontSize: 12, marginTop: 2 }}>{adminPlaylistSongs(pl.id).length} songs</div>
-                        </div>
-                      </div>
+                  <div style={{ color: "#444", fontSize: 13, marginBottom: 16 }}>Start typing to search all songs</div>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(148px,1fr))", gap: isMobile ? 10 : 14 }}>
+                    {SONGS.map((t) => (
+                      <SongCard key={t.id} track={t} isCurrent={currentTrack?.id === t.id} isPlaying={isPlaying} onClick={() => playTrack(t, SONGS)} isMobile={isMobile} />
                     ))}
                   </div>
                 </div>
@@ -1712,23 +1274,6 @@ export default function Musify() {
             </div>
           </div>
         )}
-
-        {/* ADMIN PLAYLIST */}
-        {view === "playlist" && selectedPlaylist && (() => {
-          const pl = allPlaylists.find((p) => p.id === selectedPlaylist);
-          const songs = adminPlaylistSongs(selectedPlaylist);
-          return (
-            <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
-              <div style={{ padding: isMobile ? "0 16px 16px" : "0 0 20px" }}>
-                <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>📋 {pl?.name}</h2>
-                <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
-                {songs.length > 0 && <button onClick={() => playTrack(songs[0], songs)} style={{ marginTop: 14, background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>}
-              </div>
-              {songs.length === 0 ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs in this playlist.</div>
-                : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)}
-            </div>
-          );
-        })()}
 
         {/* USER PLAYLIST */}
         {view === "userplaylist" && selectedPlaylist && (() => {
@@ -1741,12 +1286,22 @@ export default function Musify() {
                 <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🎵 {pl.name}</h2>
                 <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
                 <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-                  {songs.length > 0 && <button onClick={() => playTrack(songs[0], songs)} style={{ background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>}
-                  <button onClick={() => handleDeleteUserPlaylist(pl.id)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 24, color: "#e8435a", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "10px 18px", cursor: "pointer" }}>🗑 Delete</button>
+                  {songs.length > 0 && (
+                    <button onClick={() => playTrack(songs[0], songs)}
+                      style={{ background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>
+                      ▶ Play All
+                    </button>
+                  )}
+                  <button onClick={() => handleDeleteUserPlaylist(pl.id)}
+                    style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 24, color: "#e8435a", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "10px 18px", cursor: "pointer" }}>
+                    🗑 Delete
+                  </button>
                 </div>
               </div>
-              {songs.length === 0 ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs yet. Tap ⋮ on any song to add here.</div>
-                : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)}
+              {songs.length === 0
+                ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs yet. Tap ⋮ on any song to add here.</div>
+                : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)
+              }
             </div>
           );
         })()}
@@ -1754,7 +1309,7 @@ export default function Musify() {
         {/* PROFILE */}
         {view === "profile" && (
           <ProfilePage user={user} userDoc={userDoc}
-            onUpdate={(updates) => { setUserDoc((d) => ({ ...d, ...updates })); }}
+            onUpdate={(updates) => setUserDoc((d) => ({ ...d, ...updates }))}
             isMobile={isMobile} />
         )}
 
@@ -1762,31 +1317,15 @@ export default function Musify() {
         {view === "settings" && (
           <SettingsPage settings={playbackSettings} onSave={handleSaveSettings} audio={audio} isMobile={isMobile} />
         )}
-
-        {/* ADMIN */}
-        {view === "admin" && adminUnlocked && (
-          <AdminPanel
-            allSongs={allSongs} allPlaylists={allPlaylists}
-            onSongAdded={(song) => setAllSongs((prev) => [...prev, song].sort((a, b) => a.order - b.order))}
-            onSongDeleted={(id) => setAllSongs((prev) => prev.filter((s) => s.id !== id))}
-            isMobile={isMobile}
-          />
-        )}
-
-        {view === "admin" && !adminUnlocked && (
-          <div style={{ padding: "28px 32px", textAlign: "center", color: "#444" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-            <div style={{ marginBottom: 16 }}>Admin access required.</div>
-            <button onClick={() => setShowAdminModal(true)} style={{ background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "12px 24px", cursor: "pointer" }}>
-              Enter Password
-            </button>
-          </div>
-        )}
       </div>
 
       <PlayerBar
         track={currentTrack} isPlaying={isPlaying}
-        onToggle={() => { if (!currentTrack) return; if (isPlaying) { audio.pause(); setIsPlaying(false); } else { audio.play(); setIsPlaying(true); } }}
+        onToggle={() => {
+          if (!currentTrack) return;
+          if (isPlaying) { audio.pause(); setIsPlaying(false); }
+          else { audio.play(); setIsPlaying(true); }
+        }}
         progress={audio.progress} duration={audio.duration}
         onSeek={audio.seek} onNext={handleNext} onPrev={handlePrev}
         volume={audio.volume} onVolume={audio.setVol}
@@ -1797,20 +1336,14 @@ export default function Musify() {
         onShuffleToggle={handleShuffleToggle} onRepeatToggle={handleRepeatToggle}
       />
 
-      {isMobile && <BottomNav view={view} setView={setView} user={user} />}
+      {isMobile && <BottomNav view={view} setView={setView} />}
 
       {addToPlaylistTrack && (
-        <AddToPlaylistModal track={addToPlaylistTrack} userPlaylists={userPlaylists}
+        <AddToPlaylistModal
+          track={addToPlaylistTrack} userPlaylists={userPlaylists}
           onAdd={(plId) => handleAddToExisting(plId, addToPlaylistTrack)}
           onCreateAndAdd={handleCreateAndAdd}
-          onClose={() => setAddToPlaylistTrack(null)} />
-      )}
-
-      {/* ADMIN PASSWORD MODAL */}
-      {showAdminModal && (
-        <AdminPasswordModal
-          onSuccess={handleAdminPasswordSuccess}
-          onClose={handleAdminModalClose}
+          onClose={() => setAddToPlaylistTrack(null)}
         />
       )}
     </div>

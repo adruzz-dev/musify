@@ -39,7 +39,7 @@ const googleProvider = new GoogleAuthProvider();
 const SONGS = [
   {
     id: "1",
-    title: "Song Title 1",
+    title: "Vaishakha Sandhye",
     artist: "Artist Name",
     album: "Album Name",
     audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779531012/Vaisakha_Sandhye_HD_Video_Song_Mohanlal_Shobana_-_Nadodikkattu_-_Saina_Music_youtube_u2fvmk.mp3",

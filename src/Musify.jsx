@@ -78,14 +78,273 @@ const SONGS = [
     cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg",
   },
   {
-    id: "2",
-    title: "Song Title 2",
-    artist: "Artist Name",
+    id: "",
+    title: "",
+    artist: "",
+    album: "",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
     album: "Album Name",
-    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779447548/KALYANI_vcsmqg.mp3",
+    audioUrl: "",
     cover: "",
   },
     
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+    
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+    
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+    
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+    
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
+  
+  {
+    id: "",
+    title: "",
+    artist: "",
+    album: "Album Name",
+    audioUrl: "",
+    cover: "",
+  },
   // Add more songs below this line...
 ];
 

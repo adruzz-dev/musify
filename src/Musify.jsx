@@ -1,13 +1,29 @@
-cat > /mnt/user-data/outputs/Musify.jsx << 'ENDOFFILE'
 import { useState, useRef, useEffect, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import {
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signInWithPopup, GoogleAuthProvider, sendEmailVerification,
-  onAuthStateChanged, signOut
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  sendEmailVerification,
+  onAuthStateChanged,
+  signOut,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
 } from "firebase/auth";
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, getDocs
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  collection,
+  getDocs,
+  orderBy,
+  query,
 } from "firebase/firestore";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,7 +36,7 @@ const firebaseConfig = {
   storageBucket: "musify-39617.firebasestorage.app",
   messagingSenderId: "926623581276",
   appId: "1:926623581276:web:d5ae4301224b1506ab1299",
-  measurementId: "G-VLPDWD4CTL"
+  measurementId: "G-VLPDWD4CTL",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -29,59 +45,7 @@ const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HARDCODED SONGS — add your songs here manually
-// ─────────────────────────────────────────────────────────────────────────────
-const ALL_SONGS = [
-  {
-    id: "song-1",
-    title: "Vaisakha Sandhye",
-    artist: "K.J. Yesudas",
-    album: "Kerala Classics",
-    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779530849/images_p3p8bd.jpg",
-    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779531012/Vaisakha_Sandhye_HD_Video_Song_Mohanlal_Shobana_-_Nadodikkattu_-_Saina_Music_youtube_u2fvmk.mp3",
-    playlist: "playlist-1",
-  },
-  {
-    id: "song-2",
-    title: "Manikyakallu",
-    artist: "Shreya Ghoshal",
-    album: "Oru Kadha Pole",
-    cover: "",
-    audioUrl: "",
-    playlist: "playlist-1",
-  },
-  {
-    id: "song-3",
-    title: "Thumbi Vaa",
-    artist: "Sid Sriram",
-    album: "",
-    cover: "",
-    audioUrl: "",
-    playlist: "playlist-2",
-  },
-  // ── ADD MORE SONGS BELOW ──
-  // {
-  //   id: "song-4",
-  //   title: "Song Title",
-  //   artist: "Artist Name",
-  //   album: "Album Name",
-  //   cover: "https://res.cloudinary.com/dasnicvlp/image/upload/...",
-  //   audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/...",
-  //   playlist: "playlist-1",
-  // },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HARDCODED PLAYLISTS (admin playlists, visible to all)
-// ─────────────────────────────────────────────────────────────────────────────
-const ALL_PLAYLISTS = [
-  { id: "playlist-1", name: "Malayalam Hits", cover: "" },
-  { id: "playlist-2", name: "Chill Vibes", cover: "" },
-  // { id: "playlist-3", name: "Party Mix", cover: "" },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FIRESTORE USER HELPERS
+// FIRESTORE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 const getUserDoc = async (uid) => {
   const ref = doc(db, "users", uid);
@@ -93,25 +57,35 @@ const createUserDoc = async (uid, data) => {
   await setDoc(doc(db, "users", uid), {
     name: data.name || "",
     email: data.email || "",
+    phone: data.phone || "",
     playlists: [],
     likedSongs: [],
     createdAt: Date.now(),
   });
 };
 
+const saveUserLiked = async (uid, likedSongs) => {
+  await updateDoc(doc(db, "users", uid), { likedSongs });
+};
+
 const saveUserPlaylist = async (uid, playlist) => {
-  const ref = doc(db, "users", uid);
-  await updateDoc(ref, { playlists: arrayUnion(playlist) });
+  await updateDoc(doc(db, "users", uid), { playlists: arrayUnion(playlist) });
 };
 
 const deleteUserPlaylist = async (uid, playlist) => {
-  const ref = doc(db, "users", uid);
-  await updateDoc(ref, { playlists: arrayRemove(playlist) });
+  await updateDoc(doc(db, "users", uid), { playlists: arrayRemove(playlist) });
 };
 
-const saveUserLiked = async (uid, likedSongs) => {
-  const ref = doc(db, "users", uid);
-  await updateDoc(ref, { likedSongs });
+const fetchSongs = async () => {
+  const q = query(collection(db, "songs"), orderBy("order", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+};
+
+const fetchPlaylists = async () => {
+  const q = query(collection(db, "playlists"), orderBy("order", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,7 +93,8 @@ const saveUserLiked = async (uid, likedSongs) => {
 // ─────────────────────────────────────────────────────────────────────────────
 function formatTime(secs) {
   if (!secs || isNaN(secs)) return "0:00";
-  const m = Math.floor(secs / 60), s = Math.floor(secs % 60);
+  const m = Math.floor(secs / 60),
+    s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
@@ -157,9 +132,16 @@ function useAudioPlayer(onEnded) {
     audioRef.current = new Audio();
     audioRef.current.volume = volume;
     audioRef.current.addEventListener("ended", () => onEnded?.());
-    audioRef.current.addEventListener("timeupdate", () => setProgress(audioRef.current.currentTime));
-    audioRef.current.addEventListener("loadedmetadata", () => setDuration(audioRef.current.duration));
-    return () => { audioRef.current?.pause(); audioRef.current = null; };
+    audioRef.current.addEventListener("timeupdate", () =>
+      setProgress(audioRef.current.currentTime)
+    );
+    audioRef.current.addEventListener("loadedmetadata", () =>
+      setDuration(audioRef.current.duration)
+    );
+    return () => {
+      audioRef.current?.pause();
+      audioRef.current = null;
+    };
   }, []);
 
   const load = useCallback((url) => {
@@ -170,13 +152,21 @@ function useAudioPlayer(onEnded) {
   }, []);
 
   return {
-    progress, duration,
+    progress,
+    duration,
     volume: Math.round(volume * 100),
     load,
     play: () => audioRef.current?.play(),
     pause: () => audioRef.current?.pause(),
-    seek: (r) => { if (audioRef.current) audioRef.current.currentTime = r * (audioRef.current.duration || 0); },
-    setVol: (v) => { const val = v / 100; setVolume(val); if (audioRef.current) audioRef.current.volume = val; },
+    seek: (r) => {
+      if (audioRef.current)
+        audioRef.current.currentTime = r * (audioRef.current.duration || 0);
+    },
+    setVol: (v) => {
+      const val = v / 100;
+      setVolume(val);
+      if (audioRef.current) audioRef.current.volume = val;
+    },
   };
 }
 
@@ -184,18 +174,44 @@ function useAudioPlayer(onEnded) {
 // COVER ART
 // ─────────────────────────────────────────────────────────────────────────────
 function CoverArt({ cover, size = 48, title, radius = 8 }) {
-  const initials = title?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "♪";
+  const initials =
+    title
+      ?.split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "♪";
   const sz = typeof size === "number" ? size : "100%";
   return cover ? (
-    <img src={cover} alt={title} style={{ width: sz, height: sz, borderRadius: radius, objectFit: "cover", flexShrink: 0, display: "block" }} />
+    <img
+      src={cover}
+      alt={title}
+      style={{
+        width: sz,
+        height: sz,
+        borderRadius: radius,
+        objectFit: "cover",
+        flexShrink: 0,
+        display: "block",
+      }}
+    />
   ) : (
-    <div style={{
-      width: sz, height: sz, borderRadius: radius, flexShrink: 0,
-      background: "linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: typeof size === "number" ? Math.max(10, size * 0.28) : 14,
-      fontWeight: 800, color: "rgba(255,255,255,0.8)", letterSpacing: 1,
-    }}>
+    <div
+      style={{
+        width: sz,
+        height: sz,
+        borderRadius: radius,
+        flexShrink: 0,
+        background: "linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: typeof size === "number" ? Math.max(10, size * 0.28) : 14,
+        fontWeight: 800,
+        color: "rgba(255,255,255,0.8)",
+        letterSpacing: 1,
+      }}
+    >
       {initials}
     </div>
   );
@@ -204,42 +220,63 @@ function CoverArt({ cover, size = 48, title, radius = 8 }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER BAR
 // ─────────────────────────────────────────────────────────────────────────────
-function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile }) {
+function PlayerBar({
+  track, isPlaying, onToggle, progress, duration, onSeek,
+  onNext, onPrev, volume, onVolume, liked, onLike, isMobile,
+}) {
   const pct = `${(progress / (duration || 1)) * 100}%`;
   const bar = (
-    <div onClick={e => { const r = e.currentTarget.getBoundingClientRect(); onSeek((e.clientX - r.left) / r.width); }}
-      style={{ flex: 1, height: isMobile ? 3 : 4, background: "rgba(255,255,255,0.1)", borderRadius: 2, cursor: "pointer" }}>
-      <div style={{ width: pct, height: "100%", background: "#e8435a", borderRadius: 2, transition: "width 0.2s" }} />
+    <div
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        onSeek((e.clientX - r.left) / r.width);
+      }}
+      style={{
+        flex: 1, height: isMobile ? 3 : 4,
+        background: "rgba(255,255,255,0.1)", borderRadius: 2, cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          width: pct, height: "100%", background: "#e8435a",
+          borderRadius: 2, transition: "width 0.2s",
+        }}
+      />
     </div>
   );
   const controls = (
     <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 14 : 20 }}>
       <button onClick={onPrev} style={{ background: "none", border: "none", cursor: "pointer", color: "#777", fontSize: isMobile ? 16 : 18, padding: 4 }}>⏮</button>
-      <button onClick={onToggle} style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%", background: "#e8435a", border: "none", cursor: "pointer", color: "#fff", fontSize: isMobile ? 13 : 15, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <button onClick={onToggle} style={{
+        width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%",
+        background: "#e8435a", border: "none", cursor: "pointer", color: "#fff",
+        fontSize: isMobile ? 13 : 15, display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
         {isPlaying ? "⏸" : "▶"}
       </button>
       <button onClick={onNext} style={{ background: "none", border: "none", cursor: "pointer", color: "#777", fontSize: isMobile ? 16 : 18, padding: 4 }}>⏭</button>
     </div>
   );
 
-  if (isMobile) return (
-    <div style={{ position: "fixed", bottom: 56, left: 0, right: 0, background: "linear-gradient(0deg,#0a0a0f 85%,rgba(10,10,15,0.9))", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 16px", zIndex: 100 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ color: "#555", fontSize: 10, minWidth: 28, textAlign: "right" }}>{formatTime(progress)}</span>
-        {bar}
-        <span style={{ color: "#555", fontSize: 10, minWidth: 28 }}>{formatTime(duration)}</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {track ? <CoverArt cover={track.cover} size={38} title={track.title} /> : <div style={{ width: 38, height: 38, borderRadius: 8, background: "#1a1a22" }} />}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.title ?? "—"}</div>
-          <div style={{ color: "#666", fontSize: 11 }}>{track?.artist ?? "Select a song"}</div>
+  if (isMobile)
+    return (
+      <div style={{ position: "fixed", bottom: 56, left: 0, right: 0, background: "linear-gradient(0deg,#0a0a0f 85%,rgba(10,10,15,0.9))", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 16px", zIndex: 100 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ color: "#555", fontSize: 10, minWidth: 28, textAlign: "right" }}>{formatTime(progress)}</span>
+          {bar}
+          <span style={{ color: "#555", fontSize: 10, minWidth: 28 }}>{formatTime(duration)}</span>
         </div>
-        {track && <button onClick={onLike} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#444", fontSize: 18 }}>{liked ? "♥" : "♡"}</button>}
-        {controls}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {track ? <CoverArt cover={track.cover} size={38} title={track.title} /> : <div style={{ width: 38, height: 38, borderRadius: 8, background: "#1a1a22" }} />}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.title ?? "—"}</div>
+            <div style={{ color: "#666", fontSize: 11 }}>{track?.artist ?? "Select a song"}</div>
+          </div>
+          {track && <button onClick={onLike} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#444", fontSize: 18 }}>{liked ? "♥" : "♡"}</button>}
+          {controls}
+        </div>
       </div>
-    </div>
-  );
+    );
 
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(0deg,#090912 85%,rgba(9,9,18,0.9))", borderTop: "1px solid rgba(255,255,255,0.05)", padding: "12px 28px 14px", display: "flex", alignItems: "center", gap: 24, zIndex: 100 }}>
@@ -261,7 +298,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, justifyContent: "flex-end" }}>
         <span style={{ color: "#444", fontSize: 13 }}>🔊</span>
-        <input type="range" min={0} max={100} step={1} value={volume} onChange={e => onVolume(+e.target.value)} style={{ width: 80, accentColor: "#e8435a", cursor: "pointer" }} />
+        <input type="range" min={0} max={100} step={1} value={volume} onChange={(e) => onVolume(+e.target.value)} style={{ width: 80, accentColor: "#e8435a", cursor: "pointer" }} />
       </div>
     </div>
   );
@@ -270,7 +307,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
 // ─────────────────────────────────────────────────────────────────────────────
 // SIDEBAR
 // ─────────────────────────────────────────────────────────────────────────────
-function Sidebar({ view, setView, userPlaylists, selectedPlaylist, setSelectedPlaylist, user, onLogout }) {
+function Sidebar({ view, setView, allPlaylists, userPlaylists, selectedPlaylist, setSelectedPlaylist, user, onLogout }) {
   const nav = (id, label, icon) => (
     <button key={id} onClick={() => setView(id)} style={{
       display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
@@ -288,10 +325,27 @@ function Sidebar({ view, setView, userPlaylists, selectedPlaylist, setSelectedPl
       {nav("library", "Your Library", "📚")}
       {nav("liked", "Liked Songs", "♥")}
       {nav("search", "Search", "🔍")}
+
+      {allPlaylists.length > 0 && (
+        <>
+          <div style={{ margin: "14px 0 6px", paddingLeft: 14, color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>PLAYLISTS</div>
+          {allPlaylists.map((pl) => (
+            <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }} style={{
+              background: view === "playlist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none",
+              border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px",
+              color: view === "playlist" && selectedPlaylist === pl.id ? "#ccc" : "#666",
+              fontFamily: "inherit", fontSize: 12, width: "100%", textAlign: "left",
+            }}>
+              📋 {pl.name}
+            </button>
+          ))}
+        </>
+      )}
+
       {userPlaylists.length > 0 && (
         <>
-          <div style={{ margin: "14px 0 10px", paddingLeft: 14, color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>MY PLAYLISTS</div>
-          {userPlaylists.map(pl => (
+          <div style={{ margin: "14px 0 6px", paddingLeft: 14, color: "#444", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>MY PLAYLISTS</div>
+          {userPlaylists.map((pl) => (
             <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }} style={{
               background: view === "userplaylist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.05)" : "none",
               border: "none", borderRadius: 8, cursor: "pointer", padding: "8px 14px",
@@ -303,8 +357,9 @@ function Sidebar({ view, setView, userPlaylists, selectedPlaylist, setSelectedPl
           ))}
         </>
       )}
+
       <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-        <div style={{ paddingLeft: 14, color: "#555", fontSize: 11, marginBottom: 8 }}>👤 {user?.displayName || user?.email}</div>
+        <div style={{ paddingLeft: 14, color: "#555", fontSize: 11, marginBottom: 8 }}>👤 {user?.displayName || user?.email || user?.phoneNumber}</div>
         <button onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontFamily: "inherit", fontSize: 12, padding: "8px 14px", width: "100%", textAlign: "left" }}>
           🚪 Logout
         </button>
@@ -325,7 +380,7 @@ function BottomNav({ view, setView }) {
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0b0b10", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", zIndex: 101, height: 56 }}>
-      {items.map(item => (
+      {items.map((item) => (
         <button key={item.id} onClick={() => setView(item.id)} style={{
           flex: 1, background: "none", border: "none", cursor: "pointer",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
@@ -346,32 +401,37 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
   const [showMenu, setShowMenu] = useState(false);
   const playIcon = isCurrent && isPlaying ? "⏸" : "▶";
 
-  if (isMobile) return (
-    <div style={{ position: "relative" }}>
-      <div onClick={onPlay} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.07)" : "transparent", cursor: "pointer" }}>
-        <div style={{ color: isCurrent ? "#e8435a" : "#555", fontSize: 12, width: 18, textAlign: "center", flexShrink: 0 }}>{playIcon}</div>
-        <CoverArt cover={track.cover} size={42} title={track.title} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: isCurrent ? "#e8435a" : "#efefef", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</div>
-          <div style={{ color: "#666", fontSize: 11, marginTop: 2 }}>{track.artist}</div>
+  if (isMobile)
+    return (
+      <div style={{ position: "relative" }}>
+        <div onClick={onPlay} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.07)" : "transparent", cursor: "pointer" }}>
+          <div style={{ color: isCurrent ? "#e8435a" : "#555", fontSize: 12, width: 18, textAlign: "center", flexShrink: 0 }}>{playIcon}</div>
+          <CoverArt cover={track.cover} size={42} title={track.title} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: isCurrent ? "#e8435a" : "#efefef", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</div>
+            <div style={{ color: "#666", fontSize: 11, marginTop: 2 }}>{track.artist}</div>
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#444", fontSize: 17, padding: 4, flexShrink: 0 }}>{liked ? "♥" : "♡"}</button>
+          {onAddToPlaylist && (
+            <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 4 }}>⋮</button>
+          )}
         </div>
-        <button onClick={e => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#444", fontSize: 17, padding: 4, flexShrink: 0 }}>{liked ? "♥" : "♡"}</button>
-        {onAddToPlaylist && <button onClick={e => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 4 }}>⋮</button>}
+        {showMenu && onAddToPlaylist && (
+          <div style={{ position: "absolute", right: 16, top: "100%", background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 4, zIndex: 200, minWidth: 160 }}>
+            <div onClick={() => { onAddToPlaylist(track); setShowMenu(false); }} style={{ padding: "8px 12px", color: "#efefef", fontSize: 12, cursor: "pointer", borderRadius: 6 }}>➕ Add to playlist</div>
+          </div>
+        )}
       </div>
-      {showMenu && onAddToPlaylist && (
-        <div style={{ position: "absolute", right: 16, top: "100%", background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: 4, zIndex: 200, minWidth: 160 }}>
-          <div onClick={() => { onAddToPlaylist(track); setShowMenu(false); }} style={{ padding: "8px 12px", color: "#efefef", fontSize: 12, cursor: "pointer", borderRadius: 6 }}>➕ Add to playlist</div>
-        </div>
-      )}
-    </div>
-  );
+    );
 
   return (
     <div style={{ position: "relative" }}>
-      <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onDoubleClick={onPlay}
-        style={{ display: "grid", gridTemplateColumns: "28px 44px 1fr 130px 60px", alignItems: "center", gap: 12, padding: "6px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.07)" : hover ? "rgba(255,255,255,0.03)" : "transparent", cursor: "pointer" }}>
+      <div
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onDoubleClick={onPlay}
+        style={{ display: "grid", gridTemplateColumns: "28px 44px 1fr 130px 60px", alignItems: "center", gap: 12, padding: "6px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.07)" : hover ? "rgba(255,255,255,0.03)" : "transparent", cursor: "pointer" }}
+      >
         <div style={{ color: isCurrent ? "#e8435a" : "#555", fontSize: 12, textAlign: "center" }}>
-          {(hover || isCurrent) ? <span onClick={onPlay}>{playIcon}</span> : index + 1}
+          {hover || isCurrent ? <span onClick={onPlay}>{playIcon}</span> : index + 1}
         </div>
         <CoverArt cover={track.cover} size={40} title={track.title} />
         <div>
@@ -380,8 +440,10 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
         </div>
         <div style={{ color: "#555", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.album || ""}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={e => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "transparent", fontSize: 13, padding: 0, opacity: hover || liked ? 1 : 0 }}>♥</button>
-          {onAddToPlaylist && <button onClick={e => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 0, opacity: hover ? 1 : 0 }}>⋮</button>}
+          <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "transparent", fontSize: 13, padding: 0, opacity: hover || liked ? 1 : 0 }}>♥</button>
+          {onAddToPlaylist && (
+            <button onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 16, padding: 0, opacity: hover ? 1 : 0 }}>⋮</button>
+          )}
         </div>
       </div>
       {showMenu && onAddToPlaylist && (
@@ -399,13 +461,16 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
 function SongCard({ track, isCurrent, isPlaying, onClick, isMobile }) {
   const [hover, setHover] = useState(false);
   return (
-    <div onClick={onClick} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
         background: isCurrent ? "rgba(232,67,90,0.1)" : hover ? "rgba(255,255,255,0.04)" : "#111118",
         borderRadius: 12, padding: isMobile ? 10 : 14, cursor: "pointer",
         border: `1px solid ${isCurrent ? "rgba(232,67,90,0.35)" : "rgba(255,255,255,0.05)"}`,
         transition: "all 0.15s", position: "relative",
-      }}>
+      }}
+    >
       <div style={{ position: "relative" }}>
         <CoverArt cover={track.cover} size={isMobile ? "100%" : 120} title={track.title} radius={10} />
         {(hover || isCurrent) && (
@@ -427,8 +492,6 @@ function SongCard({ track, isCurrent, isPlaying, onClick, isMobile }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClose }) {
   const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
-
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ background: "#141420", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 24, width: "100%", maxWidth: 340 }}>
@@ -437,12 +500,11 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18 }}>✕</button>
         </div>
         <div style={{ color: "#666", fontSize: 12, marginBottom: 14 }}>"{track.title}"</div>
-
         {userPlaylists.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>YOUR PLAYLISTS</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
-              {userPlaylists.map(pl => (
+              {userPlaylists.map((pl) => (
                 <div key={pl.id} onClick={() => onAdd(pl.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(255,255,255,0.06)" }}>
                   <span style={{ fontSize: 16 }}>🎵</span>
                   <div style={{ flex: 1 }}>
@@ -455,12 +517,11 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
             </div>
           </div>
         )}
-
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 14 }}>
           <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>CREATE NEW PLAYLIST</div>
-          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Playlist name…"
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Playlist name…"
             style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
-          <button onClick={() => { if (newName.trim()) { onCreateAndAdd(newName.trim(), track); } }} disabled={!newName.trim()}
+          <button onClick={() => { if (newName.trim()) onCreateAndAdd(newName.trim(), track); }} disabled={!newName.trim()}
             style={{ width: "100%", background: newName.trim() ? "#e8435a" : "#333", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: newName.trim() ? "pointer" : "not-allowed" }}>
             ➕ Create & Add
           </button>
@@ -471,40 +532,74 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AUTH SCREEN
+// AUTH SCREEN — Email / Google / Phone OTP
 // ─────────────────────────────────────────────────────────────────────────────
 function AuthScreen({ onAuthSuccess }) {
-  const [mode, setMode] = useState("login");
+  // "email" | "phone"
+  const [method, setMethod] = useState("email");
+  // email sub-mode: "login" | "signup"
+  const [emailMode, setEmailMode] = useState("login");
+
+  // Email fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
+
+  // Phone fields
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [confirmResult, setConfirmResult] = useState(null);
+
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const recaptchaRef = useRef(null);
+  const recaptchaVerifierRef = useRef(null);
+
+  // Setup invisible recaptcha once
+  useEffect(() => {
+    if (!recaptchaVerifierRef.current && recaptchaRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(
+        auth,
+        recaptchaRef.current,
+        { size: "invisible" }
+      );
+    }
+  }, []);
+
   const inp = {
-    width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: 10, padding: "12px 16px", color: "#f0f0f0", fontSize: 14, outline: "none",
-    fontFamily: "inherit", boxSizing: "border-box",
+    width: "100%",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 10,
+    padding: "12px 16px",
+    color: "#f0f0f0",
+    fontSize: 14,
+    outline: "none",
+    fontFamily: "inherit",
+    boxSizing: "border-box",
   };
 
+  // ── Email/Password Auth ──
   const handleEmailAuth = async () => {
     setErr(""); setInfo("");
     if (!email.trim() || !pw.trim()) { setErr("Email and password are required."); return; }
-    if (mode === "signup") {
+    if (emailMode === "signup") {
       if (!name.trim()) { setErr("Please enter your name."); return; }
       if (pw !== confirmPw) { setErr("Passwords do not match."); return; }
       if (pw.length < 6) { setErr("Password must be at least 6 characters."); return; }
     }
     setLoading(true);
     try {
-      if (mode === "signup") {
+      if (emailMode === "signup") {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), pw);
         await sendEmailVerification(cred.user);
         await createUserDoc(cred.user.uid, { name: name.trim(), email: email.trim() });
-        setInfo("✉️ Verification email sent! Please check your inbox and verify before logging in.");
-        setMode("login");
+        setInfo("✉️ Verification email sent! Please verify before logging in.");
+        setEmailMode("login");
         setName(""); setPw(""); setConfirmPw("");
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), pw);
@@ -516,7 +611,8 @@ function AuthScreen({ onAuthSuccess }) {
         onAuthSuccess(cred.user);
       }
     } catch (e) {
-      const msg = e.code === "auth/user-not-found" ? "No account with this email." :
+      const msg =
+        e.code === "auth/user-not-found" ? "No account with this email." :
         e.code === "auth/wrong-password" ? "Incorrect password." :
         e.code === "auth/email-already-in-use" ? "Email already registered." :
         e.code === "auth/invalid-email" ? "Invalid email address." :
@@ -526,6 +622,7 @@ function AuthScreen({ onAuthSuccess }) {
     setLoading(false);
   };
 
+  // ── Google Auth ──
   const handleGoogle = async () => {
     setErr(""); setLoading(true);
     try {
@@ -535,80 +632,208 @@ function AuthScreen({ onAuthSuccess }) {
         await createUserDoc(cred.user.uid, { name: cred.user.displayName, email: cred.user.email });
       }
       onAuthSuccess(cred.user);
-    } catch (e) {
+    } catch {
       setErr("Google sign-in failed. Try again.");
     }
     setLoading(false);
   };
 
+  // ── Phone: Send OTP ──
+  const handleSendOtp = async () => {
+    setErr(""); setInfo("");
+    const cleaned = phone.trim();
+    if (!cleaned) { setErr("Enter a valid phone number with country code."); return; }
+    setLoading(true);
+    try {
+      if (!recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current = new RecaptchaVerifier(
+          auth, recaptchaRef.current, { size: "invisible" }
+        );
+      }
+      const result = await signInWithPhoneNumber(auth, cleaned, recaptchaVerifierRef.current);
+      setConfirmResult(result);
+      setOtpSent(true);
+      setInfo(`OTP sent to ${cleaned}`);
+    } catch (e) {
+      setErr(e.message || "Failed to send OTP. Check the phone number.");
+      // Reset recaptcha on error
+      recaptchaVerifierRef.current = null;
+    }
+    setLoading(false);
+  };
+
+  // ── Phone: Verify OTP ──
+  const handleVerifyOtp = async () => {
+    setErr(""); setInfo("");
+    if (!otp.trim()) { setErr("Enter the OTP."); return; }
+    setLoading(true);
+    try {
+      const cred = await confirmResult.confirm(otp.trim());
+      const existing = await getUserDoc(cred.user.uid);
+      if (!existing) {
+        await createUserDoc(cred.user.uid, { phone: cred.user.phoneNumber });
+      }
+      onAuthSuccess(cred.user);
+    } catch {
+      setErr("Invalid OTP. Please try again.");
+    }
+    setLoading(false);
+  };
+
+  const methodTab = (id, label, icon) => (
+    <button onClick={() => { setMethod(id); setErr(""); setInfo(""); setOtpSent(false); setOtp(""); }} style={{
+      flex: 1, background: method === id ? "#e8435a" : "none",
+      border: "none", borderRadius: 8, padding: "9px 0", cursor: "pointer",
+      color: method === id ? "#fff" : "#666", fontFamily: "inherit", fontSize: 13, fontWeight: 700,
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s",
+    }}>
+      <span>{icon}</span>{label}
+    </button>
+  );
+
   return (
     <div style={{
-      minHeight: "100vh", background: "#090912", display: "flex", alignItems: "center", justifyContent: "center",
+      minHeight: "100vh", background: "#090912",
+      display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "'Segoe UI', sans-serif", padding: 16,
       backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,67,90,0.18) 0%, transparent 70%)",
     }}>
-      <div style={{ width: "100%", maxWidth: 380 }}>
+      {/* invisible recaptcha anchor */}
+      <div ref={recaptchaRef} />
+
+      <div style={{ width: "100%", maxWidth: 400 }}>
+        {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 36, letterSpacing: -1, lineHeight: 1 }}>musify</div>
+          <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 38, letterSpacing: -1, lineHeight: 1 }}>musify</div>
           <div style={{ color: "#444", fontSize: 13, marginTop: 6 }}>Your music, your world</div>
         </div>
-        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: "32px 28px" }}>
-          {/* Tabs */}
-          <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 3, marginBottom: 24 }}>
-            {["login", "signup"].map(m => (
-              <button key={m} onClick={() => { setMode(m); setErr(""); setInfo(""); }} style={{
-                flex: 1, background: mode === m ? "#e8435a" : "none", border: "none", borderRadius: 8,
-                padding: "8px 0", cursor: "pointer", color: mode === m ? "#fff" : "#666",
-                fontFamily: "inherit", fontSize: 13, fontWeight: 700, transition: "all 0.2s",
+
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "30px 28px" }}>
+
+          {/* Method tabs: Email | Phone */}
+          <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 3, marginBottom: 22, gap: 3 }}>
+            {methodTab("email", "Email", "✉️")}
+            {methodTab("phone", "Phone", "📱")}
+          </div>
+
+          {/* ── EMAIL METHOD ── */}
+          {method === "email" && (
+            <>
+              {/* Login / Signup sub-tabs */}
+              <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: 3, marginBottom: 20, gap: 2 }}>
+                {["login", "signup"].map((m) => (
+                  <button key={m} onClick={() => { setEmailMode(m); setErr(""); setInfo(""); }} style={{
+                    flex: 1, background: emailMode === m ? "rgba(232,67,90,0.25)" : "none",
+                    border: emailMode === m ? "1px solid rgba(232,67,90,0.3)" : "1px solid transparent",
+                    borderRadius: 6, padding: "7px 0", cursor: "pointer",
+                    color: emailMode === m ? "#e8435a" : "#555", fontFamily: "inherit", fontSize: 12, fontWeight: 700,
+                  }}>
+                    {m === "login" ? "Log In" : "Sign Up"}
+                  </button>
+                ))}
+              </div>
+
+              {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
+              {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {emailMode === "signup" && (
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={inp} />
+                )}
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" style={inp} />
+                <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" style={inp}
+                  onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()} />
+                {emailMode === "signup" && (
+                  <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm password" style={inp}
+                    onKeyDown={(e) => e.key === "Enter" && handleEmailAuth()} />
+                )}
+                <button onClick={handleEmailAuth} disabled={loading} style={{
+                  background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10,
+                  color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                  padding: "13px 0", cursor: loading ? "not-allowed" : "pointer", marginTop: 2,
+                }}>
+                  {loading ? "Please wait…" : emailMode === "login" ? "Log In" : "Create Account"}
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0" }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+                <span style={{ color: "#444", fontSize: 12 }}>or continue with</span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+              </div>
+
+              {/* Google button */}
+              <button onClick={handleGoogle} disabled={loading} style={{
+                width: "100%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 10, color: "#efefef", fontFamily: "inherit", fontWeight: 600, fontSize: 14,
+                padding: "12px 0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
               }}>
-                {m === "login" ? "Log In" : "Sign Up"}
+                <svg width="18" height="18" viewBox="0 0 48 48">
+                  <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
+                  <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
+                  <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
+                  <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
+                </svg>
+                Continue with Google
               </button>
-            ))}
-          </div>
+            </>
+          )}
 
-          {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
-          {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
+          {/* ── PHONE METHOD ── */}
+          {method === "phone" && (
+            <>
+              {info && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.25)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 12, marginBottom: 14 }}>{info}</div>}
+              {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 14 }}>{err}</div>}
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {mode === "signup" && (
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={inp} />
-            )}
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" style={inp} />
-            <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Password" style={inp}
-              onKeyDown={e => e.key === "Enter" && handleEmailAuth()} />
-            {mode === "signup" && (
-              <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Confirm password" style={inp}
-                onKeyDown={e => e.key === "Enter" && handleEmailAuth()} />
-            )}
-            <button onClick={handleEmailAuth} disabled={loading} style={{
-              background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10,
-              color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14,
-              padding: "13px 0", cursor: loading ? "not-allowed" : "pointer", marginTop: 4,
-            }}>
-              {loading ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
-            </button>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>
-              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-              <span style={{ color: "#444", fontSize: 12 }}>or</span>
-              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-            </div>
-
-            <button onClick={handleGoogle} disabled={loading} style={{
-              background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 10, color: "#efefef", fontFamily: "inherit", fontWeight: 600, fontSize: 14,
-              padding: "12px 0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            }}>
-              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
-              Continue with Google
-            </button>
-          </div>
+              {!otpSent ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ color: "#555", fontSize: 12, marginBottom: 2 }}>Enter your phone number with country code</div>
+                  <input
+                    value={phone} onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+91 9876543210"
+                    style={inp}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+                  />
+                  <button onClick={handleSendOtp} disabled={loading} style={{
+                    background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10,
+                    color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                    padding: "13px 0", cursor: loading ? "not-allowed" : "pointer",
+                  }}>
+                    {loading ? "Sending…" : "Send OTP"}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ color: "#555", fontSize: 12 }}>Enter the 6-digit OTP sent to <span style={{ color: "#efefef" }}>{phone}</span></div>
+                  <input
+                    value={otp} onChange={(e) => setOtp(e.target.value)}
+                    placeholder="6-digit OTP"
+                    maxLength={6}
+                    style={{ ...inp, letterSpacing: 8, fontSize: 20, textAlign: "center" }}
+                    onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
+                  />
+                  <button onClick={handleVerifyOtp} disabled={loading} style={{
+                    background: loading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10,
+                    color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14,
+                    padding: "13px 0", cursor: loading ? "not-allowed" : "pointer",
+                  }}>
+                    {loading ? "Verifying…" : "Verify OTP"}
+                  </button>
+                  <button onClick={() => { setOtpSent(false); setOtp(""); setErr(""); setInfo(""); recaptchaVerifierRef.current = null; }} style={{
+                    background: "none", border: "none", color: "#555", fontFamily: "inherit", fontSize: 12, cursor: "pointer", textDecoration: "underline",
+                  }}>
+                    ← Change number / Resend
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
-        {mode === "signup" && (
-          <div style={{ textAlign: "center", color: "#444", fontSize: 11, marginTop: 14 }}>
-            A verification email will be sent after signup.
-          </div>
-        )}
+
+        <div style={{ textAlign: "center", color: "#333", fontSize: 11, marginTop: 20 }}>
+          musify • your personal music player
+        </div>
       </div>
     </div>
   );
@@ -620,32 +845,44 @@ function AuthScreen({ onAuthSuccess }) {
 export default function Musify() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
+
   const [view, setView] = useState("home");
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [search, setSearch] = useState("");
+
+  const [allSongs, setAllSongs] = useState([]);
+  const [allPlaylists, setAllPlaylists] = useState([]);
+
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [queue, setQueue] = useState([]);
+
   const [likedIds, setLikedIds] = useState(new Set());
   const [likedTracks, setLikedTracksArr] = useState([]);
-  const [queue, setQueue] = useState([]);
+
   const [userPlaylists, setUserPlaylists] = useState([]);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
-  const [userData, setUserData] = useState(null);
 
   const isMobile = useIsMobile();
 
-  // Auth listener
+  // ── Auth listener ──
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u && u.emailVerified) {
-        setUser(u);
-        const data = await getUserDoc(u.uid);
-        if (data) {
-          setUserData(data);
-          setUserPlaylists(data.playlists || []);
-          const liked = data.likedSongs || [];
-          setLikedIds(new Set(liked.map(s => s.id)));
-          setLikedTracksArr(liked);
+      if (u) {
+        // Phone users are always "verified"; email users need emailVerified
+        const isPhone = !!u.phoneNumber;
+        if (isPhone || u.emailVerified) {
+          setUser(u);
+          const data = await getUserDoc(u.uid);
+          if (data) {
+            setUserPlaylists(data.playlists || []);
+            const liked = data.likedSongs || [];
+            setLikedIds(new Set(liked.map((s) => s.id)));
+            setLikedTracksArr(liked);
+          }
+        } else {
+          setUser(null);
         }
       } else {
         setUser(null);
@@ -655,12 +892,28 @@ export default function Musify() {
     return unsub;
   }, []);
 
+  // ── Fetch songs & playlists from Firestore ──
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [songs, playlists] = await Promise.all([fetchSongs(), fetchPlaylists()]);
+        setAllSongs(songs);
+        setAllPlaylists(playlists);
+      } catch (e) {
+        console.error("Firestore fetch failed:", e);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+    load();
+  }, []);
+
   const handleEnded = useCallback(() => {
-    const q = queue.length > 0 ? queue : ALL_SONGS;
-    const idx = q.findIndex(t => t.id === currentTrack?.id);
+    const q = queue.length > 0 ? queue : allSongs;
+    const idx = q.findIndex((t) => t.id === currentTrack?.id);
     const next = q[(idx + 1) % q.length];
     if (next) playTrack(next, q);
-  }, [currentTrack, queue]);
+  }, [currentTrack, queue, allSongs]);
 
   const audio = useAudioPlayer(handleEnded);
 
@@ -668,13 +921,16 @@ export default function Musify() {
     setUser(u);
     const data = await getUserDoc(u.uid);
     if (data) {
-      setUserData(data);
       setUserPlaylists(data.playlists || []);
       const liked = data.likedSongs || [];
-      setLikedIds(new Set(liked.map(s => s.id)));
+      setLikedIds(new Set(liked.map((s) => s.id)));
       setLikedTracksArr(liked);
     } else {
-      await createUserDoc(u.uid, { name: u.displayName || "", email: u.email });
+      await createUserDoc(u.uid, {
+        name: u.displayName || "",
+        email: u.email || "",
+        phone: u.phoneNumber || "",
+      });
     }
   };
 
@@ -689,42 +945,45 @@ export default function Musify() {
     audio.pause();
   };
 
-  // Play
-  const playTrack = useCallback((track, trackList = []) => {
-    if (currentTrack?.id === track.id) {
-      if (isPlaying) { audio.pause(); setIsPlaying(false); }
-      else { audio.play(); setIsPlaying(true); }
-      return;
-    }
-    if (!track.audioUrl) return;
-    setCurrentTrack(track);
-    setIsPlaying(true);
-    if (trackList.length > 0) setQueue(trackList);
-    audio.load(track.audioUrl);
-  }, [currentTrack, isPlaying, audio]);
+  // ── Play ──
+  const playTrack = useCallback(
+    (track, trackList = []) => {
+      if (currentTrack?.id === track.id) {
+        if (isPlaying) { audio.pause(); setIsPlaying(false); }
+        else { audio.play(); setIsPlaying(true); }
+        return;
+      }
+      if (!track.audioUrl) return;
+      setCurrentTrack(track);
+      setIsPlaying(true);
+      if (trackList.length > 0) setQueue(trackList);
+      audio.load(track.audioUrl);
+    },
+    [currentTrack, isPlaying, audio]
+  );
 
   const handleNext = useCallback(() => {
-    const q = queue.length > 0 ? queue : ALL_SONGS;
-    const idx = q.findIndex(t => t.id === currentTrack?.id);
+    const q = queue.length > 0 ? queue : allSongs;
+    const idx = q.findIndex((t) => t.id === currentTrack?.id);
     const next = q[(idx + 1) % q.length];
     if (next) playTrack(next, q);
-  }, [currentTrack, queue, playTrack]);
+  }, [currentTrack, queue, allSongs, playTrack]);
 
   const handlePrev = useCallback(() => {
     if (audio.progress > 3) { audio.seek(0); return; }
-    const q = queue.length > 0 ? queue : ALL_SONGS;
-    const idx = q.findIndex(t => t.id === currentTrack?.id);
+    const q = queue.length > 0 ? queue : allSongs;
+    const idx = q.findIndex((t) => t.id === currentTrack?.id);
     const prev = q[(idx - 1 + q.length) % q.length];
     if (prev) playTrack(prev, q);
-  }, [currentTrack, queue, playTrack, audio]);
+  }, [currentTrack, queue, allSongs, playTrack, audio]);
 
-  // Like
+  // ── Like ──
   const handleLike = async (track) => {
     const next = new Set(likedIds);
     let nextArr;
     if (next.has(track.id)) {
       next.delete(track.id);
-      nextArr = likedTracks.filter(t => t.id !== track.id);
+      nextArr = likedTracks.filter((t) => t.id !== track.id);
     } else {
       next.add(track.id);
       nextArr = [...likedTracks, track];
@@ -734,7 +993,7 @@ export default function Musify() {
     if (user) await saveUserLiked(user.uid, nextArr);
   };
 
-  // User playlists
+  // ── User playlists ──
   const handleCreateAndAdd = async (name, track) => {
     const newPl = { id: generateId(), name, songs: [track] };
     const updated = [...userPlaylists, newPl];
@@ -744,23 +1003,22 @@ export default function Musify() {
   };
 
   const handleAddToExisting = async (plId, track) => {
-    const updated = userPlaylists.map(pl => {
+    const updated = userPlaylists.map((pl) => {
       if (pl.id !== plId) return pl;
-      const already = pl.songs?.some(s => s.id === track.id);
+      const already = pl.songs?.some((s) => s.id === track.id);
       if (already) return pl;
       return { ...pl, songs: [...(pl.songs || []), track] };
     });
     setUserPlaylists(updated);
     if (user) {
-      const ref = doc(db, "users", user.uid);
-      await updateDoc(ref, { playlists: updated });
+      await updateDoc(doc(db, "users", user.uid), { playlists: updated });
     }
     setAddToPlaylistTrack(null);
   };
 
   const handleDeleteUserPlaylist = async (plId) => {
-    const pl = userPlaylists.find(p => p.id === plId);
-    const updated = userPlaylists.filter(p => p.id !== plId);
+    const pl = userPlaylists.find((p) => p.id === plId);
+    const updated = userPlaylists.filter((p) => p.id !== plId);
     setUserPlaylists(updated);
     if (user && pl) await deleteUserPlaylist(user.uid, pl);
     setView("library");
@@ -775,30 +1033,36 @@ export default function Musify() {
   });
 
   const searchResults = search.trim()
-    ? ALL_SONGS.filter(s =>
-        s.title.toLowerCase().includes(search.toLowerCase()) ||
-        s.artist.toLowerCase().includes(search.toLowerCase()) ||
-        (s.album || "").toLowerCase().includes(search.toLowerCase())
+    ? allSongs.filter(
+        (s) =>
+          s.title?.toLowerCase().includes(search.toLowerCase()) ||
+          s.artist?.toLowerCase().includes(search.toLowerCase()) ||
+          (s.album || "").toLowerCase().includes(search.toLowerCase())
       )
     : [];
 
-  const adminPlaylistSongs = (plId) => ALL_SONGS.filter(s => s.playlist === plId);
+  const adminPlaylistSongs = (plId) => allSongs.filter((s) => s.playlist === plId);
   const mobilePad = currentTrack ? 168 : 72;
 
-  if (authLoading) return (
+  // ── Loading screens ──
+  const Spinner = ({ label = "musify" }) => (
     <div style={{ minHeight: "100vh", background: "#090912", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 28 }}>musify</div>
+      <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 28 }}>{label}</div>
     </div>
   );
 
+  if (authLoading) return <Spinner />;
   if (!user) return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  if (dataLoading) return <Spinner label="Loading music…" />;
 
+  // ── Main UI ──
   return (
     <div style={{ display: "flex", height: "100vh", background: "#090912", fontFamily: "'Segoe UI', sans-serif", color: "#f0f0f0", overflow: "hidden" }}>
 
       {!isMobile && (
         <Sidebar
           view={view} setView={setView}
+          allPlaylists={allPlaylists}
           userPlaylists={userPlaylists}
           selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist}
           user={user} onLogout={handleLogout}
@@ -818,37 +1082,47 @@ export default function Musify() {
         {view === "home" && (
           <div style={{ padding: isMobile ? "12px 16px" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>{getGreeting()} 🎵</h2>
-            <p style={{ color: "#555", fontSize: 13, marginBottom: 28, marginTop: 0 }}>Welcome back, {user.displayName || user.email}</p>
+            <p style={{ color: "#555", fontSize: 13, marginBottom: 28, marginTop: 0 }}>
+              Welcome back, {user.displayName || user.email || user.phoneNumber}
+            </p>
 
-            {/* All songs grid */}
-            <div style={{ marginBottom: 32 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px" }}>🎵 All Songs</h3>
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(148px,1fr))", gap: isMobile ? 10 : 14 }}>
-                {ALL_SONGS.filter(t => t.audioUrl).map(t => (
-                  <SongCard key={t.id} track={t} isCurrent={currentTrack?.id === t.id} isPlaying={isPlaying} onClick={() => playTrack(t, ALL_SONGS)} isMobile={isMobile} />
-                ))}
+            {/* All songs */}
+            {allSongs.filter((t) => t.audioUrl).length > 0 && (
+              <div style={{ marginBottom: 32 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 14px" }}>🎵 All Songs</h3>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(148px,1fr))", gap: isMobile ? 10 : 14 }}>
+                  {allSongs.filter((t) => t.audioUrl).map((t) => (
+                    <SongCard key={t.id} track={t} isCurrent={currentTrack?.id === t.id} isPlaying={isPlaying} onClick={() => playTrack(t, allSongs)} isMobile={isMobile} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Admin playlists sections */}
-            {ALL_PLAYLISTS.map(pl => {
-              const songs = adminPlaylistSongs(pl.id).filter(t => t.audioUrl);
+            {/* Admin playlists */}
+            {allPlaylists.map((pl) => {
+              const songs = adminPlaylistSongs(pl.id).filter((t) => t.audioUrl);
               if (songs.length === 0) return null;
               return (
                 <div key={pl.id} style={{ marginBottom: 32 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>📋 {pl.name}</h3>
-                    <button onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }}
-                      style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>See all →</button>
+                    <button onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>See all →</button>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(148px,1fr))", gap: isMobile ? 10 : 14 }}>
-                    {songs.slice(0, isMobile ? 4 : 6).map(t => (
+                    {songs.slice(0, isMobile ? 4 : 6).map((t) => (
                       <SongCard key={t.id} track={t} isCurrent={currentTrack?.id === t.id} isPlaying={isPlaying} onClick={() => playTrack(t, songs)} isMobile={isMobile} />
                     ))}
                   </div>
                 </div>
               );
             })}
+
+            {allSongs.length === 0 && (
+              <div style={{ color: "#444", textAlign: "center", marginTop: 60 }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>🎵</div>
+                <div>No songs yet. Add songs to your Firestore <code>songs</code> collection.</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -856,21 +1130,17 @@ export default function Musify() {
         {view === "library" && (
           <div style={{ padding: isMobile ? "12px 16px" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, marginTop: 0 }}>Your Library</h2>
-
-            {/* User playlists */}
             <div style={{ marginBottom: 28 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <div style={{ color: "#888", fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>MY PLAYLISTS</div>
-              </div>
+              <div style={{ color: "#888", fontSize: 12, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>MY PLAYLISTS</div>
               {userPlaylists.length === 0 ? (
                 <div style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, padding: "24px 20px", textAlign: "center" }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>🎵</div>
-                  <div style={{ color: "#555", fontSize: 13, marginBottom: 4 }}>No playlists yet</div>
-                  <div style={{ color: "#444", fontSize: 12 }}>Tap ⋮ on any song to add it to a playlist</div>
+                  <div style={{ color: "#555", fontSize: 13 }}>No playlists yet</div>
+                  <div style={{ color: "#444", fontSize: 12, marginTop: 4 }}>Tap ⋮ on any song to create one</div>
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {userPlaylists.map(pl => (
+                  {userPlaylists.map((pl) => (
                     <div key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("userplaylist"); }}
                       style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}>
                       <div style={{ width: 44, height: 44, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🎵</div>
@@ -883,8 +1153,6 @@ export default function Musify() {
                 </div>
               )}
             </div>
-
-            {/* Liked songs quick link */}
             <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 20 }}>
               <div style={{ color: "#888", fontSize: 12, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>SAVED</div>
               <div onClick={() => setView("liked")} style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}>
@@ -913,7 +1181,7 @@ export default function Musify() {
         {view === "search" && (
           <div style={{ padding: isMobile ? "12px 16px" : "28px 32px" }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 16, marginTop: 0 }}>Search</h2>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search songs, artists, albums…"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search songs, artists, albums…"
               style={{ width: "100%", maxWidth: isMobile ? "100%" : 460, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "12px 20px", color: "#f0f0f0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
             <div style={{ marginTop: 20 }}>
               {search && searchResults.length === 0 && <div style={{ color: "#444" }}>No songs found for "{search}"</div>}
@@ -922,7 +1190,7 @@ export default function Musify() {
                 <div>
                   <div style={{ color: "#444", fontSize: 13, marginBottom: 16 }}>Browse by playlist</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {ALL_PLAYLISTS.map(pl => (
+                    {allPlaylists.map((pl) => (
                       <div key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }}
                         style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}>
                         <div style={{ width: 44, height: 44, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📋</div>
@@ -943,14 +1211,16 @@ export default function Musify() {
         {view === "playlist" && selectedPlaylist && (
           <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
             {(() => {
-              const pl = ALL_PLAYLISTS.find(p => p.id === selectedPlaylist);
+              const pl = allPlaylists.find((p) => p.id === selectedPlaylist);
               const songs = adminPlaylistSongs(selectedPlaylist);
               return (
                 <>
                   <div style={{ padding: isMobile ? "0 16px 16px" : "0 0 20px" }}>
                     <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>📋 {pl?.name}</h2>
                     <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
-                    {songs.length > 0 && <button onClick={() => playTrack(songs[0], songs)} style={{ marginTop: 14, background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>}
+                    {songs.length > 0 && (
+                      <button onClick={() => playTrack(songs[0], songs)} style={{ marginTop: 14, background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>
+                    )}
                   </div>
                   {songs.length === 0
                     ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs in this playlist.</div>
@@ -966,7 +1236,7 @@ export default function Musify() {
         {view === "userplaylist" && selectedPlaylist && (
           <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
             {(() => {
-              const pl = userPlaylists.find(p => p.id === selectedPlaylist);
+              const pl = userPlaylists.find((p) => p.id === selectedPlaylist);
               if (!pl) return null;
               const songs = pl.songs || [];
               return (
@@ -975,8 +1245,10 @@ export default function Musify() {
                     <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🎵 {pl.name}</h2>
                     <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
                     <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-                      {songs.length > 0 && <button onClick={() => playTrack(songs[0], songs)} style={{ background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>}
-                      <button onClick={() => handleDeleteUserPlaylist(pl.id)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 24, color: "#e8435a", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "10px 18px", cursor: "pointer" }}>🗑 Delete Playlist</button>
+                      {songs.length > 0 && (
+                        <button onClick={() => playTrack(songs[0], songs)} style={{ background: "#e8435a", border: "none", borderRadius: 24, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 22px", cursor: "pointer" }}>▶ Play All</button>
+                      )}
+                      <button onClick={() => handleDeleteUserPlaylist(pl.id)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 24, color: "#e8435a", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "10px 18px", cursor: "pointer" }}>🗑 Delete</button>
                     </div>
                   </div>
                   {songs.length === 0

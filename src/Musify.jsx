@@ -54,12 +54,12 @@ const SONGS = [
     cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/images_wy9ybz.jpg",
   },
     {
-    id: "1",
-    title: "Vaishakha Sandhye",
-    artist: "Artist Name",
+    id: "3",
+    title: "Aaradhikee",
+    artist: "Madhuvanthi Narayan, Sooraj Santhosh",
     album: "Album Name",
-    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779531012/Vaisakha_Sandhye_HD_Video_Song_Mohanlal_Shobana_-_Nadodikkattu_-_Saina_Music_youtube_u2fvmk.mp3",
-    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779530849/images_p3p8bd.jpg",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557126/Aaradhike_Video_Song___Soubin_Shahir___E4_Entertainment___Johnpaul_George_dAezp422I_A_enjry4.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779561178/images_2_fuqfh9.jpg",
   },
   {
     id: "2",

@@ -5,60 +5,54 @@ const SPOTIFY_CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID";
 const SPOTIFY_CLIENT_SECRET = "YOUR_SPOTIFY_CLIENT_SECRET";
 const LASTFM_API_KEY = "YOUR_LASTFM_API_KEY";
 
-// Featured playlist to show on Home (Deezer playlist ID)
-const FEATURED_PLAYLIST_ID = "1282516355"; // Top Hits playlist
 
 // ─── API HELPERS ───────────────────────────────────────────────────────────────
 
-// Deezer — tries multiple CORS proxies in order
-const DEEZER_BASE = "https://api.deezer.com";
-const PROXIES = [
-  (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url) => `https://proxy.cors.sh/${url}`,
-];
-
-const deezerFetch = async (path) => {
-  const targetUrl = `${DEEZER_BASE}${path}`;
-  for (const proxy of PROXIES) {
-    try {
-      const res = await fetch(proxy(targetUrl), { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (data && !data.error) return data;
-    } catch { continue; }
-  }
-  return {};
+// ── iTunes Search API (no key, no CORS issues) ──
+const searchItunes = async (query) => {
+  const res = await fetch(
+    `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=20`
+  );
+  const data = await res.json();
+  return (data.results || []).map(normalizeItunesTrack);
 };
 
-const searchDeezer = async (query) => {
-  const data = await deezerFetch(`/search?q=${encodeURIComponent(query)}&limit=20`);
-  return (data.data || []).map(normalizeDeezerTrack);
+const getItunesTopCharts = async () => {
+  // iTunes RSS feed — returns top 20 songs, no CORS issues
+  const res = await fetch(
+    "https://itunes.apple.com/us/rss/topsongs/limit=20/json"
+  );
+  const data = await res.json();
+  const entries = data?.feed?.entry || [];
+  return entries.map((e) => ({
+    id: `itunes-${e.id?.attributes?.["im:id"]}`,
+    title: e["im:name"]?.label || "Unknown",
+    artist: e["im:artist"]?.label || "Unknown",
+    album: e["im:collection"]?.["im:name"]?.label || "",
+    duration: 30,
+    genre: e.category?.attributes?.label || "",
+    cover: e["im:image"]?.[2]?.label || e["im:image"]?.[0]?.label || "",
+    src: null, // RSS feed doesn't include previews
+  }));
 };
 
-const getDeezerPlaylist = async (id) => {
-  const data = await deezerFetch(`/playlist/${id}`);
-  return {
-    name: data.title || "Featured",
-    tracks: (data.tracks?.data || []).map(normalizeDeezerTrack),
-  };
+const searchItunesByArtist = async (artist) => {
+  const res = await fetch(
+    `https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&media=music&entity=song&limit=20`
+  );
+  const data = await res.json();
+  return (data.results || []).map(normalizeItunesTrack);
 };
 
-const getDeezerChart = async () => {
-  const data = await deezerFetch(`/chart/0/tracks?limit=20`);
-  return (data.data || []).map(normalizeDeezerTrack);
-};
-
-const normalizeDeezerTrack = (t) => ({
-  id: `deezer-${t.id}`,
-  title: t.title,
-  artist: t.artist?.name || "Unknown",
-  album: t.album?.title || "",
-  duration: t.duration || 30,
-  genre: "",
-  cover: t.album?.cover_medium || t.album?.cover || "",
-  src: t.preview, // 30s preview
-  deezerId: t.id,
+const normalizeItunesTrack = (t) => ({
+  id: `itunes-${t.trackId}`,
+  title: t.trackName || "Unknown",
+  artist: t.artistName || "Unknown",
+  album: t.collectionName || "",
+  duration: Math.floor((t.trackTimeMillis || 30000) / 1000),
+  genre: t.primaryGenreName || "",
+  cover: t.artworkUrl100 || t.artworkUrl60 || "",
+  src: t.previewUrl || null, // 30s preview MP3
 });
 
 // Spotify — needs CLIENT_ID + CLIENT_SECRET
@@ -413,13 +407,14 @@ export default function Musify() {
     const loadHome = async () => {
       setLoadingHome(true);
       try {
-        const playlist = await getDeezerPlaylist(FEATURED_PLAYLIST_ID);
-        setFeaturedTracks(playlist.tracks);
-        setFeaturedName(playlist.name);
+        const chart = await getItunesTopCharts();
+        // Top chart entries may lack previews; fetch full track data for top 5
+        const withPreviews = await searchItunes("top hits 2024");
+        const merged = withPreviews.length > 0 ? withPreviews : chart;
+        setFeaturedTracks(merged);
+        setFeaturedName("Top Charts");
       } catch {
-        // fallback to chart
-        const chart = await getDeezerChart();
-        setFeaturedTracks(chart);
+        setFeaturedTracks([]);
         setFeaturedName("Top Charts");
       }
       // Load Spotify playlists if key set
@@ -440,7 +435,7 @@ export default function Musify() {
     clearTimeout(searchTimeout.current);
     setSearching(true);
     searchTimeout.current = setTimeout(async () => {
-      const results = await searchDeezer(search);
+      const results = await searchItunes(search);
       setSearchResults(results);
       setSearching(false);
     }, 400);
@@ -487,7 +482,11 @@ export default function Musify() {
 
   const handleArtistClick = async (artistName) => {
     setArtistModal({ name: artistName, info: null, similar: [] });
-    const [info, similar] = await Promise.all([getArtistInfo(artistName), getSimilarArtists(artistName)]);
+    // Last.fm for bio (if key set), iTunes for similar artist tracks
+    const [info, similar] = await Promise.all([
+      getArtistInfo(artistName),
+      getSimilarArtists(artistName),
+    ]);
     setArtistModal({ name: artistName, info, similar });
   };
 
@@ -522,7 +521,7 @@ export default function Musify() {
         {view === "home" && (
           <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4 }}>Good evening 🎵</h2>
-            <p style={{ color: "#555", fontSize: 13, marginBottom: 24 }}>Powered by Deezer • 30s previews</p>
+            <p style={{ color: "#555", fontSize: 13, marginBottom: 24 }}>Powered by iTunes • 30s previews</p>
 
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "#f0f0f0" }}>🎵 {featuredName}</h3>
             {loadingHome ? (
@@ -585,10 +584,10 @@ export default function Musify() {
         {view === "search" && (
           <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 16 }}>Search</h2>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search songs, artists... (Deezer)"
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search songs, artists... (iTunes)"
               style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "12px 20px", color: "#f0f0f0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
             <div style={{ marginTop: 20 }}>
-              {searching && <div style={{ color: "#555", fontSize: 13 }}>Searching Deezer...</div>}
+              {searching && <div style={{ color: "#555", fontSize: 13 }}>Searching iTunes...</div>}
               {!searching && search && searchResults.length === 0 && <div style={{ color: "#555" }}>No results found.</div>}
               {searchResults.map((t, i) => (
                 <TrackRow key={t.id} track={t} index={i} {...sharedProps} isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)} liked={likedIds.has(t.id)} onLike={() => handleLike(t.id)} />

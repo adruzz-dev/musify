@@ -78,21 +78,21 @@ const SONGS = [
     cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg",
   },
   {
-    id: "",
-    title: "",
-    artist: "",
+    id: "6",
+    title: "Darshana",
+    artist: "Vineeth Sreenivasan",
     album: "",
-    audioUrl: "",
-    cover: "",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557122/Darshana_-_Official_Video_Song___Hridayam___Pranav___Darshana___Vineeth___Hesham___Merryland_epAFDEJImrU_hsyy47.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/ab67616d00001e029b8c8ab6e0a59493a5fa06c6_pi7ztc.jpg",
   },
   
   {
-    id: "",
-    title: "",
-    artist: "",
+    id: "7",
+    title: "Pavizha mazha",
+    artist: "K. S. Harisankar",
     album: "Album Name",
-    audioUrl: "",
-    cover: "",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg",
   },
     
   {

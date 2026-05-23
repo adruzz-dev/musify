@@ -27,11 +27,10 @@
 
 import { useState, useRef } from "react";
 
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || "musify-admin";
-const GITHUB_TOKEN   = import.meta.env.VITE_GITHUB_TOKEN   || "";
-const GITHUB_REPO    = import.meta.env.VITE_GITHUB_REPO    || "";
-const GITHUB_FILE    = import.meta.env.VITE_GITHUB_FILE    || "src/App.jsx";
-
+const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || "musify-admin";
+const GITHUB_TOKEN   = process.env.REACT_APP_GITHUB_TOKEN   || "";
+const GITHUB_REPO    = process.env.REACT_APP_GITHUB_REPO    || "";
+const GITHUB_FILE    = process.env.REACT_APP_GITHUB_FILE    || "src/musify.jsx";
 // ── Styles ──────────────────────────────────────────────────────────────────
 const S = {
   page: {

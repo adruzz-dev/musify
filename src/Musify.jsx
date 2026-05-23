@@ -668,8 +668,213 @@ function AdminPanel({ songs, playlists, onSave, onBack, cloudConfig, setCloudCon
   );
 }
 
+// ─── AUTH HELPERS ──────────────────────────────────────────────────────────────
+const getUsers = () => JSON.parse(localStorage.getItem("musify_users") || "[]");
+const saveUsers = (users) => localStorage.setItem("musify_users", JSON.stringify(users));
+const getSession = () => JSON.parse(localStorage.getItem("musify_session") || "null");
+const saveSession = (user) => localStorage.setItem("musify_session", JSON.stringify(user));
+const clearSession = () => localStorage.removeItem("musify_session");
+
+// ─── LOGIN / SIGNUP SCREEN ─────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [tab, setTab] = useState("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const inputStyle = { width: "100%", background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "13px 16px", color: "#f0f0f0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 };
+  const btnStyle = { width: "100%", background: "#e8435a", border: "none", borderRadius: 30, color: "#fff", fontFamily: "inherit", fontWeight: 800, fontSize: 15, padding: "14px", cursor: "pointer", marginTop: 8 };
+  const tabBtn = (id, label) => (
+    <button onClick={() => { setTab(id); setError(""); }} style={{ flex: 1, background: tab === id ? "#e8435a" : "transparent", border: "none", borderRadius: 8, color: tab === id ? "#fff" : "#888", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "9px", cursor: "pointer" }}>{label}</button>
+  );
+
+  const handleLogin = () => {
+    setError("");
+    const users = getUsers();
+    const user = users.find(u => u.email === email && u.password === password);
+    if (!user) { setError("Invalid email or password."); return; }
+    saveSession(user);
+    onAuth(user);
+  };
+
+  const handleSignup = () => {
+    setError("");
+    if (!name.trim() || !email.trim() || !password.trim()) { setError("All fields are required."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    const users = getUsers();
+    if (users.find(u => u.email === email)) { setError("Email already registered."); return; }
+    const user = { id: generateId(), name: name.trim(), email: email.trim(), password, avatar: name.trim()[0].toUpperCase(), joinedAt: new Date().toISOString() };
+    saveUsers([...users, user]);
+    saveSession(user);
+    onAuth(user);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',sans-serif", padding: 16 }}>
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ color: "#e8435a", fontWeight: 900, fontSize: 36, letterSpacing: -1 }}>musify</div>
+          <div style={{ color: "#555", fontSize: 13, marginTop: 6 }}>Your personal music experience</div>
+        </div>
+        <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: 28 }}>
+          <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 4, marginBottom: 24 }}>
+            {tabBtn("login", "Log In")}
+            {tabBtn("signup", "Sign Up")}
+          </div>
+          {tab === "signup" && (
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={inputStyle} />
+          )}
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" type="email" style={inputStyle} />
+          <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" type="password"
+            onKeyDown={e => e.key === "Enter" && (tab === "login" ? handleLogin() : handleSignup())}
+            style={{ ...inputStyle, marginBottom: 4 }} />
+          {error && <div style={{ color: "#e8435a", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+          <button onClick={tab === "login" ? handleLogin : handleSignup} style={btnStyle}>
+            {tab === "login" ? "Log In" : "Create Account"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── USER SETTINGS PANEL ───────────────────────────────────────────────────────
+function UserSettingsPanel({ user, onLogout, onUpdateUser, likedCount, playlistCount, onClose, isMobile }) {
+  const [section, setSection] = useState("main");
+  const [editName, setEditName] = useState(user.name);
+  const [editEmail, setEditEmail] = useState(user.email);
+  const [editPw, setEditPw] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  const inputStyle = { width: "100%", background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 };
+  const rowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" };
+  const labelStyle = { color: "#f0f0f0", fontSize: 14 };
+  const subStyle = { color: "#555", fontSize: 12 };
+
+  const saveProfile = () => {
+    if (!editName.trim() || !editEmail.trim()) return;
+    const users = getUsers();
+    const updated = { ...user, name: editName.trim(), email: editEmail.trim(), avatar: editName.trim()[0].toUpperCase(), ...(editPw.length >= 6 ? { password: editPw } : {}) };
+    saveUsers(users.map(u => u.id === user.id ? updated : u));
+    saveSession(updated);
+    onUpdateUser(updated);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); setSection("main"); }, 1500);
+  };
+
+  const deleteAccount = () => {
+    const users = getUsers();
+    saveUsers(users.filter(u => u.id !== user.id));
+    clearSession();
+    onLogout();
+  };
+
+  const overlay = { position: "fixed", inset: 0, background: "#0a0a0f", zIndex: 200, fontFamily: "'Segoe UI',sans-serif", overflowY: "auto" };
+  const header = (title, back) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 20px 0", marginBottom: 8 }}>
+      {back && <button onClick={back} style={{ background: "none", border: "none", color: "#aaa", fontSize: 22, cursor: "pointer", padding: 0 }}>←</button>}
+      <div style={{ fontWeight: 800, fontSize: 18, color: "#f0f0f0", flex: 1 }}>{title}</div>
+      {!back && <button onClick={onClose} style={{ background: "none", border: "none", color: "#aaa", fontSize: 22, cursor: "pointer" }}>✕</button>}
+    </div>
+  );
+
+  if (section === "account") return (
+    <div style={overlay}>
+      {header("Account", () => setSection("main"))}
+      <div style={{ padding: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, background: "#0d0d12", borderRadius: 14, padding: 20, marginBottom: 20 }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#e8435a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 22, color: "#fff" }}>{user.avatar}</div>
+          <div>
+            <div style={{ color: "#f0f0f0", fontWeight: 700, fontSize: 16 }}>{user.name}</div>
+            <div style={{ color: "#666", fontSize: 13 }}>{user.email}</div>
+          </div>
+        </div>
+        <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Name" style={inputStyle} />
+        <input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="Email" type="email" style={inputStyle} />
+        <input value={editPw} onChange={e => setEditPw(e.target.value)} placeholder="New password (leave blank to keep)" type="password" style={inputStyle} />
+        {saved && <div style={{ color: "#4caf50", fontSize: 13, marginBottom: 8 }}>✓ Saved!</div>}
+        <button onClick={saveProfile} style={{ width: "100%", background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px", cursor: "pointer", marginBottom: 12 }}>Save Changes</button>
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 16, marginTop: 4 }}>
+          {!deleteConfirm
+            ? <button onClick={() => setDeleteConfirm(true)} style={{ width: "100%", background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 10, color: "#e8435a", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px", cursor: "pointer" }}>Delete Account</button>
+            : <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 10, padding: 16 }}>
+                <div style={{ color: "#e8435a", fontWeight: 700, marginBottom: 8 }}>Are you sure?</div>
+                <div style={{ color: "#888", fontSize: 13, marginBottom: 12 }}>This cannot be undone.</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={deleteAccount} style={{ flex: 1, background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, padding: "10px", cursor: "pointer" }}>Yes, Delete</button>
+                  <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontFamily: "inherit", fontWeight: 700, padding: "10px", cursor: "pointer" }}>Cancel</button>
+                </div>
+              </div>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Main settings
+  return (
+    <div style={overlay}>
+      {header("Settings")}
+      {/* Profile card */}
+      <div style={{ padding: "16px 20px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, background: "#0d0d12", borderRadius: 14, padding: 16, marginBottom: 20 }}>
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e8435a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: "#fff", flexShrink: 0 }}>{user.avatar}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: "#f0f0f0", fontWeight: 700, fontSize: 15 }}>{user.name}</div>
+            <div style={{ color: "#666", fontSize: 12 }}>{user.email}</div>
+          </div>
+          <button onClick={() => setSection("account")} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontFamily: "inherit", fontSize: 12, padding: "7px 12px", cursor: "pointer" }}>Edit</button>
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+          <div style={{ background: "#0d0d12", borderRadius: 12, padding: "14px 16px" }}>
+            <div style={{ color: "#e8435a", fontWeight: 800, fontSize: 22 }}>{likedCount}</div>
+            <div style={{ color: "#666", fontSize: 12, marginTop: 2 }}>Liked Songs</div>
+          </div>
+          <div style={{ background: "#0d0d12", borderRadius: 12, padding: "14px 16px" }}>
+            <div style={{ color: "#e8435a", fontWeight: 800, fontSize: 22 }}>{playlistCount}</div>
+            <div style={{ color: "#666", fontSize: 12, marginTop: 2 }}>Playlists</div>
+          </div>
+        </div>
+
+        {/* Settings rows */}
+        <div style={{ background: "#0d0d12", borderRadius: 14, padding: "0 16px", marginBottom: 12 }}>
+          <div style={rowStyle} onClick={() => setSection("account")}>
+            <div><div style={labelStyle}>👤 Account</div><div style={subStyle}>Name • Email • Password</div></div>
+            <span style={{ color: "#555" }}>›</span>
+          </div>
+          <div style={rowStyle} onClick={() => {}}>
+            <div><div style={labelStyle}>♥ Liked Songs</div><div style={subStyle}>{likedCount} songs saved</div></div>
+            <span style={{ color: "#555" }}>›</span>
+          </div>
+          <div style={{ ...rowStyle, borderBottom: "none" }} onClick={() => {}}>
+            <div><div style={labelStyle}>🎵 My Playlists</div><div style={subStyle}>{playlistCount} playlists</div></div>
+            <span style={{ color: "#555" }}>›</span>
+          </div>
+        </div>
+
+        <div style={{ background: "#0d0d12", borderRadius: 14, padding: "0 16px", marginBottom: 20 }}>
+          <div style={{ ...rowStyle, borderBottom: "none" }}>
+            <div><div style={labelStyle}>ℹ️ About Musify</div><div style={subStyle}>Version 1.0</div></div>
+          </div>
+        </div>
+
+        <button onClick={() => { clearSession(); onLogout(); }}
+          style={{ width: "100%", background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 30, color: "#e8435a", fontFamily: "inherit", fontWeight: 800, fontSize: 15, padding: "14px", cursor: "pointer" }}>
+          Log Out
+        </button>
+        <div style={{ height: 40 }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function Musify() {
+  const [currentUser, setCurrentUser] = useState(() => getSession());
+  const [showSettings, setShowSettings] = useState(false);
   const [route, setRoute] = useState(window.location.hash === "#admin" ? "admin" : "app");
   const [view, setView] = useState("home");
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -848,6 +1053,9 @@ export default function Musify() {
   // Playlist tracks
   const getPlaylistTracks = (plId) => adminSongs.filter(s => s.playlist === plId);
 
+  // ── AUTH GATE ──
+  if (!currentUser) return <AuthScreen onAuth={(user) => setCurrentUser(user)} />;
+
   // ── ADMIN ROUTE ──
   if (route === "admin") return (
     <AdminPanel
@@ -872,7 +1080,7 @@ export default function Musify() {
         {isMobile && (
           <div style={{ padding: "20px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ color: "#e8435a", fontWeight: 800, fontSize: 24 }}>musify</div>
-            <div style={{ color: "#555", fontSize: 11 }}></div>
+            <div onClick={() => setShowSettings(true)} style={{ width: 34, height: 34, borderRadius: "50%", background: "#e8435a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: "#fff", cursor: "pointer" }}>{currentUser.avatar}</div>
           </div>
         )}
 
@@ -988,23 +1196,31 @@ export default function Musify() {
         })()}
 
         {/* USER SETTINGS */}
-        {view === "usersettings" && (
-          <div style={{ padding: isMobile ? "12px 16px" : 32, maxWidth: 480 }}>
-            <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 24 }}>⚙️ Settings</h2>
+        {view === "usersettings" && !isMobile && (
+          <div style={{ padding: 32, maxWidth: 480 }}>
+            <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 24 }}>⚙️ Settings</h2>
             <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>🎵 My Playlists</div>
-              <div style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>Create and manage your personal playlists. Tap ＋ on any song to add it to a playlist.</div>
-              <button onClick={() => setView("userplaylists")} style={{ background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" }}>Manage Playlists</button>
-            </div>
-            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>♥ Liked Songs</div>
-              <div style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>{likedTracks.length} liked songs</div>
-              <button onClick={() => setView("liked")} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" }}>View Liked Songs</button>
-            </div>
-            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>📚 Library</div>
-              <div style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>Browse all available songs.</div>
-              <button onClick={() => setView("library")} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" }}>Open Library</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e8435a", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, color: "#fff" }}>{currentUser.avatar}</div>
+                <div>
+                  <div style={{ color: "#f0f0f0", fontWeight: 700, fontSize: 15 }}>{currentUser.name}</div>
+                  <div style={{ color: "#666", fontSize: 12 }}>{currentUser.email}</div>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                <div style={{ background: "#13131a", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ color: "#e8435a", fontWeight: 800, fontSize: 20 }}>{likedTracks.length}</div>
+                  <div style={{ color: "#666", fontSize: 12 }}>Liked Songs</div>
+                </div>
+                <div style={{ background: "#13131a", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ color: "#e8435a", fontWeight: 800, fontSize: 20 }}>{userPlaylists.length}</div>
+                  <div style={{ color: "#666", fontSize: 12 }}>Playlists</div>
+                </div>
+              </div>
+              <button onClick={() => { clearSession(); setCurrentUser(null); }}
+                style={{ width: "100%", background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.25)", borderRadius: 10, color: "#e8435a", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "12px", cursor: "pointer" }}>
+                Log Out
+              </button>
             </div>
           </div>
         )}
@@ -1017,6 +1233,18 @@ export default function Musify() {
           onAdd={(plId) => addTrackToUserPlaylist(plId, addToPlaylistModal)}
           onCreate={(name) => { const id = createUserPlaylist(name); addTrackToUserPlaylist(id, addToPlaylistModal); }}
           onClose={() => setAddToPlaylistModal(null)}
+        />
+      )}
+
+      {(showSettings || (isMobile && view === "usersettings")) && (
+        <UserSettingsPanel
+          user={currentUser}
+          onLogout={() => { setCurrentUser(null); setShowSettings(false); }}
+          onUpdateUser={(u) => setCurrentUser(u)}
+          likedCount={likedTracks.length}
+          playlistCount={userPlaylists.length}
+          onClose={() => { setShowSettings(false); if (view === "usersettings") setView("home"); }}
+          isMobile={isMobile}
         />
       )}
 
@@ -1035,7 +1263,7 @@ export default function Musify() {
         isMobile={isMobile}
       />
 
-      {isMobile && <BottomNav view={view} setView={setView} />}
+      {isMobile && <BottomNav view={view} setView={(v) => { if (v === "usersettings") setShowSettings(true); else setView(v); }} />}
     </div>
   );
 }

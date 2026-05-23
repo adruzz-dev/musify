@@ -3,8 +3,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // CLOUDINARY CONFIG — fill in your details
 // ─────────────────────────────────────────────────────────────────────────────
-const CLOUD_NAME = "your_cloud_name";         // e.g. "mymusify"
-const UPLOAD_PRESET = "your_upload_preset";   // e.g. "musify_uploads"
+const CLOUD_NAME = "dasnicvlp";         // e.g. "mymusify"
+const UPLOAD_PRESET = "musify_uploads";   // e.g. "musify_uploads"
 const USERS_FILE_KEY = "musify_users";        // tag used to find user data file
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,12 +16,12 @@ const USERS_FILE_KEY = "musify_users";        // tag used to find user data file
 const ALL_SONGS = [
   {
     id: "song-1",
-    title: "Ente Keralam",
+    title: "Vaisakha Sandhye",
     artist: "K.J. Yesudas",
     album: "Kerala Classics",
-    cover: "",   // put Cloudinary image URL here
-    audioUrl: "", // put Cloudinary audio URL here
-    playlist: "playlist-1",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779530849/images_p3p8bd.jpg",   // put Cloudinary image URL here
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779531012/Vaisakha_Sandhye_HD_Video_Song_Mohanlal_Shobana_-_Nadodikkattu_-_Saina_Music_youtube_u2fvmk.mp3", // put Cloudinary audio URL here
+    playlist: "Malayalam Melodies",
   },
   {
     id: "song-2",
@@ -40,6 +40,51 @@ const ALL_SONGS = [
     cover: "",
     audioUrl: "",
     playlist: "playlist-2",
+  },
+   {
+    id: "song-1",
+    title: "Ente Keralam",
+    artist: "K.J. Yesudas",
+    album: "Kerala Classics",
+    cover: "",   // put Cloudinary image URL here
+    audioUrl: "", // put Cloudinary audio URL here
+    playlist: "playlist-1",
+  },
+   {
+    id: "song-1",
+    title: "Ente Keralam",
+    artist: "K.J. Yesudas",
+    album: "Kerala Classics",
+    cover: "",   // put Cloudinary image URL here
+    audioUrl: "", // put Cloudinary audio URL here
+    playlist: "playlist-1",
+  },
+   {
+    id: "song-1",
+    title: "Ente Keralam",
+    artist: "K.J. Yesudas",
+    album: "Kerala Classics",
+    cover: "",   // put Cloudinary image URL here
+    audioUrl: "", // put Cloudinary audio URL here
+    playlist: "playlist-1",
+  },
+   {
+    id: "song-1",
+    title: "Ente Keralam",
+    artist: "K.J. Yesudas",
+    album: "Kerala Classics",
+    cover: "",   // put Cloudinary image URL here
+    audioUrl: "", // put Cloudinary audio URL here
+    playlist: "playlist-1",
+  },
+   {
+    id: "song-1",
+    title: "Ente Keralam",
+    artist: "K.J. Yesudas",
+    album: "Kerala Classics",
+    cover: "",   // put Cloudinary image URL here
+    audioUrl: "", // put Cloudinary audio URL here
+    playlist: "playlist-1",
   },
   // ── ADD MORE SONGS BELOW ──
   // {

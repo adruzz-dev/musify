@@ -1,3 +1,4 @@
+import AdminPanel from "./AdminPanel";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import {
@@ -876,7 +877,9 @@ export default function App() {
     });
     return unsub;
   }, []);
-
+  useEffect(() => {
+      if (window.location.hash === "#admin") setView("admin");
+  }, []);
   const playSong = useCallback((song, songList, idx) => {
     const list = shuffle ? [...songList].sort(() => Math.random() - 0.5) : songList;
     const newIdx = shuffle ? list.findIndex((s) => s.id === song.id) : idx;
@@ -928,6 +931,7 @@ export default function App() {
   };
 
   const renderMain = () => {
+    if (view === "admin") return <AdminPanel />;
     if (view === "playlist" && selectedPlaylist)
       return <PlaylistView playlist={selectedPlaylist} currentTrack={currentTrack} isPlaying={isPlaying} onPlay={playSong} likedSongs={likedSongs} onLike={toggleLike} />;
     if (view === "liked")

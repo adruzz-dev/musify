@@ -814,16 +814,58 @@ function SettingsPage({ settings, onSave, audio, isMobile }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CLOUDINARY CONFIG
+// ─────────────────────────────────────────────────────────────────────────────
+const CLOUDINARY_CLOUD = "dasnicvlp";
+const CLOUDINARY_PRESET = "Musify";
+const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/upload`;
+
+async function uploadToCloudinary(file, resourceType = "auto", onProgress) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_PRESET);
+  fd.append("resource_type", resourceType);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${resourceType}/upload`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        const res = JSON.parse(xhr.responseText);
+        resolve(res.secure_url);
+      } else {
+        reject(new Error(`Cloudinary error: ${xhr.responseText}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(fd);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ADMIN PANEL
 // ─────────────────────────────────────────────────────────────────────────────
 function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobile }) {
   const [tab, setTab] = useState("songs");
+
+  // audio source toggle: "file" | "url"
+  const [audioMode, setAudioMode] = useState("file");
+  const [coverMode, setCoverMode] = useState("file");
+
   const [form, setForm] = useState({ title: "", artist: "", album: "", playlist: "", order: 0 });
   const [audioFile, setAudioFile] = useState(null);
+  const [audioUrl, setAudioUrl] = useState("");
   const [coverFile, setCoverFile] = useState(null);
+  const [coverUrl, setCoverUrl] = useState("");
   const [coverPreview, setCoverPreview] = useState("");
+
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState("");
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [coverProgress, setCoverProgress] = useState(0);
+  const [uploadStep, setUploadStep] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [plForm, setPlForm] = useState({ name: "", order: 0 });
@@ -831,43 +873,86 @@ function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobi
 
   const inp = { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "11px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
 
-  const handleCoverChange = (e) => {
+  const modeTab = (current, set, a, b) => (
+    <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 8, padding: 3, gap: 3, marginBottom: 10 }}>
+      {[[a, "📁 Upload File"], [b, "🔗 Paste URL"]].map(([val, label]) => (
+        <button key={val} onClick={() => set(val)} style={{ flex: 1, background: current === val ? "rgba(232,67,90,0.25)" : "none", border: current === val ? "1px solid rgba(232,67,90,0.35)" : "1px solid transparent", borderRadius: 6, color: current === val ? "#e8435a" : "#666", fontFamily: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 0", cursor: "pointer" }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const handleCoverFileChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
     setCoverFile(f);
     setCoverPreview(URL.createObjectURL(f));
   };
 
-  const handleAddSong = async () => {
-    if (!form.title || !audioFile) { setErr("Title and audio file are required."); return; }
-    setUploading(true); setMsg(""); setErr("");
-    try {
-      setUploadProgress("Uploading audio…");
-      const audioRef2 = storageRef(storage, `songs/${Date.now()}_${audioFile.name}`);
-      await uploadBytes(audioRef2, audioFile);
-      const audioUrl = await getDownloadURL(audioRef2);
+  const handleCoverUrlChange = (e) => {
+    setCoverUrl(e.target.value);
+    setCoverPreview(e.target.value);
+  };
 
-      let cover = "";
-      if (coverFile) {
-        setUploadProgress("Uploading cover…");
-        const covRef = storageRef(storage, `covers/${Date.now()}_${coverFile.name}`);
-        await uploadBytes(covRef, coverFile);
-        cover = await getDownloadURL(covRef);
+  const resetForm = () => {
+    setForm({ title: "", artist: "", album: "", playlist: "", order: 0 });
+    setAudioFile(null); setAudioUrl("");
+    setCoverFile(null); setCoverUrl(""); setCoverPreview("");
+    setAudioProgress(0); setCoverProgress(0); setUploadStep("");
+  };
+
+  const handleAddSong = async () => {
+    const hasAudio = audioMode === "file" ? !!audioFile : audioUrl.trim();
+    if (!form.title.trim()) { setErr("Song title is required."); return; }
+    if (!hasAudio) { setErr("Audio file or URL is required."); return; }
+    setUploading(true); setMsg(""); setErr("");
+
+    try {
+      let finalAudioUrl = "";
+      let finalCover = "";
+
+      // ── Audio ──
+      if (audioMode === "file") {
+        setUploadStep("Uploading audio to Cloudinary…");
+        setAudioProgress(0);
+        finalAudioUrl = await uploadToCloudinary(audioFile, "video", setAudioProgress);
+        // Cloudinary uses "video" resource_type for audio files
+      } else {
+        finalAudioUrl = audioUrl.trim();
       }
 
-      setUploadProgress("Saving to Firestore…");
+      // ── Cover ──
+      if (coverMode === "file" && coverFile) {
+        setUploadStep("Uploading cover to Cloudinary…");
+        setCoverProgress(0);
+        finalCover = await uploadToCloudinary(coverFile, "image", setCoverProgress);
+      } else if (coverMode === "url" && coverUrl.trim()) {
+        finalCover = coverUrl.trim();
+      }
+
+      setUploadStep("Saving to Firestore…");
       const docRef = await addDoc(collection(db, "songs"), {
-        title: form.title, artist: form.artist, album: form.album,
-        playlist: form.playlist, order: Number(form.order),
-        audioUrl, cover, createdAt: Date.now(),
+        title: form.title.trim(),
+        artist: form.artist.trim(),
+        album: form.album.trim(),
+        playlist: form.playlist,
+        order: Number(form.order),
+        audioUrl: finalAudioUrl,
+        cover: finalCover,
+        createdAt: Date.now(),
       });
 
-      onSongAdded({ id: docRef.id, ...form, audioUrl, cover, order: Number(form.order) });
-      setMsg(`✅ "${form.title}" added!`);
-      setForm({ title: "", artist: "", album: "", playlist: "", order: 0 });
-      setAudioFile(null); setCoverFile(null); setCoverPreview("");
-      setUploadProgress("");
-    } catch (e) { setErr(e.message); setUploadProgress(""); }
+      onSongAdded({
+        id: docRef.id, ...form,
+        audioUrl: finalAudioUrl, cover: finalCover, order: Number(form.order),
+      });
+      setMsg(`✅ "${form.title}" added successfully!`);
+      resetForm();
+    } catch (e) {
+      setErr(e.message || "Upload failed. Check your Cloudinary preset settings.");
+      setUploadStep("");
+    }
     setUploading(false);
   };
 
@@ -888,10 +973,24 @@ function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobi
     } catch (e) { setPlMsg(e.message); }
   };
 
+  const ProgressBar = ({ value, label }) => value > 0 && value < 100 ? (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", color: "#888", fontSize: 11, marginBottom: 4 }}>
+        <span>{label}</span><span>{value}%</span>
+      </div>
+      <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2 }}>
+        <div style={{ width: `${value}%`, height: "100%", background: "#e8435a", borderRadius: 2, transition: "width 0.2s" }} />
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div style={{ padding: isMobile ? "12px 16px" : "28px 32px", maxWidth: 680 }}>
       <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🛡️ Admin Panel</h2>
-      <p style={{ color: "#555", fontSize: 13, marginBottom: 20 }}>Manage songs, covers and playlists</p>
+      <p style={{ color: "#555", fontSize: 13, marginBottom: 20 }}>
+        Manage songs and playlists · Powered by{" "}
+        <span style={{ color: "#e8435a", fontWeight: 700 }}>Cloudinary</span>
+      </p>
 
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 6, marginBottom: 22, background: "rgba(255,255,255,0.05)", borderRadius: 10, padding: 4 }}>
@@ -906,57 +1005,101 @@ function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobi
         <>
           {/* Add Song Form */}
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 20, marginBottom: 20 }}>
-            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>ADD NEW SONG</div>
+            <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 16 }}>ADD NEW SONG</div>
 
-            {msg && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.3)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 13, marginBottom: 12 }}>{msg}</div>}
-            {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 13, marginBottom: 12 }}>{err}</div>}
+            {msg && <div style={{ background: "rgba(76,175,80,0.1)", border: "1px solid rgba(76,175,80,0.3)", borderRadius: 8, padding: "10px 14px", color: "#4caf50", fontSize: 13, marginBottom: 14 }}>{msg}</div>}
+            {err && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 13, marginBottom: 14 }}>{err}</div>}
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            {/* Metadata */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 16 }}>
               <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Song title *" style={inp} />
               <input value={form.artist} onChange={(e) => setForm({ ...form, artist: e.target.value })} placeholder="Artist" style={inp} />
               <input value={form.album} onChange={(e) => setForm({ ...form, album: e.target.value })} placeholder="Album" style={inp} />
-              <select value={form.playlist} onChange={(e) => setForm({ ...form, playlist: e.target.value })}
-                style={{ ...inp, cursor: "pointer" }}>
+              <select value={form.playlist} onChange={(e) => setForm({ ...form, playlist: e.target.value })} style={{ ...inp, cursor: "pointer" }}>
                 <option value="">No Playlist</option>
                 {allPlaylists.map((pl) => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
               </select>
               <input type="number" value={form.order} onChange={(e) => setForm({ ...form, order: +e.target.value })} placeholder="Sort order" style={inp} />
             </div>
 
-            {/* Audio upload */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ color: "#555", fontSize: 11, marginBottom: 6 }}>AUDIO FILE *</div>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.04)", border: `1px dashed ${audioFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer" }}>
-                <span style={{ fontSize: 20 }}>🎵</span>
-                <div>
-                  <div style={{ color: audioFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600 }}>{audioFile ? audioFile.name : "Choose audio file"}</div>
-                  <div style={{ color: "#444", fontSize: 11 }}>MP3, WAV, OGG</div>
-                </div>
-                <input type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => setAudioFile(e.target.files[0])} />
-              </label>
-            </div>
-
-            {/* Cover upload */}
+            {/* ── AUDIO ── */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ color: "#555", fontSize: 11, marginBottom: 6 }}>COVER ART (optional)</div>
-              <label style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.04)", border: `1px dashed ${coverFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "12px 16px", cursor: "pointer" }}>
-                {coverPreview
-                  ? <img src={coverPreview} alt="cover" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover" }} />
-                  : <div style={{ width: 48, height: 48, borderRadius: 8, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🖼️</div>
-                }
-                <div>
-                  <div style={{ color: coverFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600 }}>{coverFile ? coverFile.name : "Choose cover image"}</div>
-                  <div style={{ color: "#444", fontSize: 11 }}>PNG, JPG, WebP</div>
-                </div>
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleCoverChange} />
-              </label>
+              <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>AUDIO *</div>
+              {modeTab(audioMode, setAudioMode, "file", "url")}
+
+              {audioMode === "file" ? (
+                <label style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.04)", border: `1px dashed ${audioFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 8, background: audioFile ? "rgba(232,67,90,0.15)" : "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🎵</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: audioFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {audioFile ? audioFile.name : "Choose audio file"}
+                    </div>
+                    <div style={{ color: "#444", fontSize: 11, marginTop: 2 }}>MP3, WAV, OGG, FLAC · Uploaded to Cloudinary</div>
+                  </div>
+                  <input type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => setAudioFile(e.target.files[0])} />
+                </label>
+              ) : (
+                <input
+                  value={audioUrl}
+                  onChange={(e) => setAudioUrl(e.target.value)}
+                  placeholder="https://res.cloudinary.com/dasnicvlp/video/upload/..."
+                  style={inp}
+                />
+              )}
+              <ProgressBar value={audioProgress} label="Uploading audio…" />
             </div>
 
-            {uploadProgress && <div style={{ color: "#888", fontSize: 12, marginBottom: 10 }}>⏳ {uploadProgress}</div>}
+            {/* ── COVER ── */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>COVER ART (optional)</div>
+              {modeTab(coverMode, setCoverMode, "file", "url")}
 
-            <button onClick={handleAddSong} disabled={uploading} style={{ width: "100%", background: uploading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "12px 0", cursor: uploading ? "not-allowed" : "pointer" }}>
+              {coverMode === "file" ? (
+                <label style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.04)", border: `1px dashed ${coverFile ? "#e8435a" : "rgba(255,255,255,0.15)"}`, borderRadius: 10, padding: "12px 16px", cursor: "pointer" }}>
+                  {coverPreview
+                    ? <img src={coverPreview} alt="cover preview" style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+                    : <div style={{ width: 52, height: 52, borderRadius: 8, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>🖼️</div>
+                  }
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: coverFile ? "#e8435a" : "#666", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {coverFile ? coverFile.name : "Choose cover image"}
+                    </div>
+                    <div style={{ color: "#444", fontSize: 11, marginTop: 2 }}>PNG, JPG, WebP · Uploaded to Cloudinary</div>
+                  </div>
+                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleCoverFileChange} />
+                </label>
+              ) : (
+                <div>
+                  <input
+                    value={coverUrl}
+                    onChange={handleCoverUrlChange}
+                    placeholder="https://res.cloudinary.com/dasnicvlp/image/upload/..."
+                    style={{ ...inp, marginBottom: coverPreview ? 10 : 0 }}
+                  />
+                  {coverPreview && (
+                    <img src={coverPreview} alt="cover preview" style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", marginTop: 8 }}
+                      onError={() => setCoverPreview("")} />
+                  )}
+                </div>
+              )}
+              <ProgressBar value={coverProgress} label="Uploading cover…" />
+            </div>
+
+            {uploadStep && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 12, marginBottom: 12 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#e8435a", animation: "pulse 1s infinite" }} />
+                {uploadStep}
+              </div>
+            )}
+
+            <button onClick={handleAddSong} disabled={uploading} style={{ width: "100%", background: uploading ? "#6a1e2a" : "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 14, padding: "13px 0", cursor: uploading ? "not-allowed" : "pointer" }}>
               {uploading ? "Uploading…" : "➕ Add Song"}
             </button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, justifyContent: "center" }}>
+              <span style={{ color: "#333", fontSize: 11 }}>Uploads go to</span>
+              <span style={{ color: "#555", fontSize: 11, fontWeight: 700 }}>Cloudinary / {CLOUDINARY_CLOUD}</span>
+            </div>
           </div>
 
           {/* Songs list */}
@@ -964,15 +1107,19 @@ function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobi
             <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>ALL SONGS ({allSongs.length})</div>
             {allSongs.length === 0
               ? <div style={{ color: "#444", fontSize: 13 }}>No songs yet.</div>
-              : <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+              : <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 360, overflowY: "auto" }}>
                   {allSongs.map((s) => (
-                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
-                      <CoverArt cover={s.cover} size={36} title={s.title} radius={6} />
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
+                      <CoverArt cover={s.cover} size={38} title={s.title} radius={6} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ color: "#efefef", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                        <div style={{ color: "#555", fontSize: 11 }}>{s.artist}</div>
+                        <div style={{ color: "#555", fontSize: 11 }}>{s.artist}{s.album ? ` · ${s.album}` : ""}</div>
                       </div>
-                      <button onClick={() => handleDeleteSong(s)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 6, color: "#e8435a", fontFamily: "inherit", fontSize: 11, padding: "4px 10px", cursor: "pointer" }}>🗑</button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {s.cover && <span style={{ color: "#4caf50", fontSize: 10, fontWeight: 700 }}>🖼</span>}
+                        {s.audioUrl && <span style={{ color: "#4caf50", fontSize: 10, fontWeight: 700 }}>🎵</span>}
+                        <button onClick={() => handleDeleteSong(s)} style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 6, color: "#e8435a", fontFamily: "inherit", fontSize: 11, padding: "4px 10px", cursor: "pointer" }}>🗑</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -987,7 +1134,7 @@ function AdminPanel({ allSongs, allPlaylists, onSongAdded, onSongDeleted, isMobi
             <div style={{ color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 14 }}>CREATE PLAYLIST</div>
             {plMsg && <div style={{ color: plMsg.startsWith("✅") ? "#4caf50" : "#e8435a", fontSize: 12, marginBottom: 10 }}>{plMsg}</div>}
             <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-              <input value={plForm.name} onChange={(e) => setPlForm({ ...plForm, name: e.target.value })} placeholder="Playlist name" style={{ ...inp }} />
+              <input value={plForm.name} onChange={(e) => setPlForm({ ...plForm, name: e.target.value })} placeholder="Playlist name" style={inp} />
               <input type="number" value={plForm.order} onChange={(e) => setPlForm({ ...plForm, order: +e.target.value })} placeholder="Order" style={{ ...inp, width: 80 }} />
             </div>
             <button onClick={handleAddPlaylist} style={{ background: "#e8435a", border: "none", borderRadius: 10, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "11px 0", cursor: "pointer", width: "100%" }}>

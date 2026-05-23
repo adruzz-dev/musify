@@ -17,66 +17,6 @@ const uploadToCloudinary = async (file, cloudName, uploadPreset, resourceType = 
   throw new Error(data.error?.message || "Upload failed");
 };
 
-// ─── SPOTIFY ───────────────────────────────────────────────────────────────────
-const SPOTIFY_CLIENT_ID = "3e5e5882ff8a49f5ad0ba92f7a8885a6";
-const SPOTIFY_CLIENT_SECRET = "81fc642a1f2f429f8803847e2e4e4445";
-let spotifyToken = null, spotifyTokenExpiry = 0;
-const getSpotifyToken = async () => {
-  if (spotifyToken && Date.now() < spotifyTokenExpiry) return spotifyToken;
-  try {
-    const res = await fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: { Authorization: "Basic " + btoa(SPOTIFY_CLIENT_ID + ":" + SPOTIFY_CLIENT_SECRET), "Content-Type": "application/x-www-form-urlencoded" },
-      body: "grant_type=client_credentials",
-    });
-    const data = await res.json();
-    spotifyToken = data.access_token;
-    spotifyTokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
-    return spotifyToken;
-  } catch { return null; }
-};
-const spotifyGet = async (path) => {
-  const token = await getSpotifyToken();
-  if (!token) return null;
-  try { const res = await fetch(`https://api.spotify.com/v1${path}`, { headers: { Authorization: `Bearer ${token}` } }); return res.json(); } catch { return null; }
-};
-const searchSpotifyTracks = async (query) => {
-  const data = await spotifyGet(`/search?q=${encodeURIComponent(query)}&type=track&limit=20`);
-  return (data?.tracks?.items || []).map((t) => ({
-    id: `yt-spotify-${t.id}`, videoId: null,
-    searchQuery: `${t.name} ${t.artists?.[0]?.name} official audio`,
-    title: t.name, artist: t.artists?.[0]?.name || "Unknown",
-    album: t.album?.name || "", duration: Math.floor((t.duration_ms || 0) / 1000),
-    genre: "", cover: t.album?.images?.[0]?.url || "", source: "spotify",
-  }));
-};
-const getSpotifyNewReleases = async () => {
-  const data = await spotifyGet("/browse/new-releases?limit=10");
-  return (data?.albums?.items || []).map((a) => ({
-    id: `yt-album-${a.id}`, videoId: null,
-    searchQuery: `${a.name} ${a.artists?.[0]?.name} official audio`,
-    title: a.name, artist: a.artists?.[0]?.name || "Unknown",
-    album: a.name, duration: 0, genre: "", cover: a.images?.[0]?.url || "", source: "spotify",
-  }));
-};
-const getSpotifyFeatured = async () => {
-  const data = await spotifyGet("/browse/featured-playlists?limit=6");
-  return data?.playlists?.items || [];
-};
-const searchItunesForYT = async (query) => {
-  try {
-    const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=20`);
-    const data = await res.json();
-    return (data.results || []).map((t) => ({
-      id: `yt-itunes-${t.trackId}`, videoId: null,
-      searchQuery: `${t.trackName} ${t.artistName} official audio`,
-      title: t.trackName || "Unknown", artist: t.artistName || "Unknown",
-      album: t.collectionName || "", duration: Math.floor((t.trackTimeMillis || 0) / 1000),
-      genre: t.primaryGenreName || "", cover: t.artworkUrl100 || "", source: "itunes",
-    }));
-  } catch { return []; }
-};
-
 // ─── UTILS ─────────────────────────────────────────────────────────────────────
 function formatTime(secs) {
   if (!secs) return "0:00";
@@ -258,7 +198,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
   );
 }
 
-function Sidebar({ view, setView, playlists, selectedPlaylist, setSelectedPlaylist }) {
+function Sidebar({ view, setView, playlists, selectedPlaylist, setSelectedPlaylist, userPlaylists, onSelectUserPlaylist }) {
   const navItem = (id, label, icon) => (
     <button key={id} onClick={() => setView(id)} style={{ display: "flex", alignItems: "center", gap: 10, background: view === id ? "rgba(232,67,90,0.12)" : "none", border: "none", borderRadius: 8, cursor: "pointer", color: view === id ? "#e8435a" : "#888", fontFamily: "inherit", fontSize: 13, fontWeight: 600, padding: "9px 14px", width: "100%", textAlign: "left" }}>
       <span>{icon}</span> {label}
@@ -271,6 +211,8 @@ function Sidebar({ view, setView, playlists, selectedPlaylist, setSelectedPlayli
       {navItem("library", "Your Library", "📚")}
       {navItem("liked", "Liked Songs", "♥")}
       {navItem("search", "Search", "🔍")}
+      {navItem("userplaylists", "My Playlists", "🎵")}
+      {navItem("usersettings", "Settings", "⚙️")}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", margin: "16px 0 12px", paddingTop: 16, paddingLeft: 14, color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>PLAYLISTS</div>
       {playlists.map((pl) => (
         <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }}
@@ -278,6 +220,15 @@ function Sidebar({ view, setView, playlists, selectedPlaylist, setSelectedPlayli
           {pl.name}
         </button>
       ))}
+      {userPlaylists.length > 0 && <>
+        <div style={{ paddingLeft: 14, color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginTop: 8 }}>MY PLAYLISTS</div>
+        {userPlaylists.map((pl) => (
+          <button key={pl.id} onClick={() => onSelectUserPlaylist(pl.id)}
+            style={{ background: view === "userplaylist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.06)" : "none", border: "none", borderRadius: 8, cursor: "pointer", color: "#777", fontFamily: "inherit", fontSize: 12, padding: "8px 14px", width: "100%", textAlign: "left" }}>
+            🎵 {pl.name}
+          </button>
+        ))}
+      </>}
     </div>
   );
 }
@@ -286,8 +237,9 @@ function BottomNav({ view, setView }) {
   const items = [
     { id: "home", label: "Home", icon: "🏠" },
     { id: "search", label: "Search", icon: "🔍" },
-    { id: "library", label: "Library", icon: "📚" },
+    { id: "userplaylists", label: "Playlists", icon: "🎵" },
     { id: "liked", label: "Liked", icon: "♥" },
+    { id: "usersettings", label: "Settings", icon: "⚙️" },
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0d0d12", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", zIndex: 101, height: 56 }}>
@@ -300,7 +252,7 @@ function BottomNav({ view, setView }) {
   );
 }
 
-function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, isMobile, loading }) {
+function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, isMobile, loading, onAddToPlaylist }) {
   const [hover, setHover] = useState(false);
   if (isMobile) return (
     <div onClick={onPlay} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.08)" : "transparent", cursor: "pointer" }}>
@@ -312,6 +264,7 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
         <div style={{ color: isCurrent ? "#e8435a" : "#f0f0f0", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
         <div style={{ color: "#777", fontSize: 12 }}>{track.artist}</div>
       </div>
+      <button onClick={(e) => { e.stopPropagation(); onAddToPlaylist?.(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 18, padding: 4, flexShrink: 0 }}>＋</button>
       <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#555", fontSize: 18, padding: 4, flexShrink: 0 }}>{liked ? "♥" : "♡"}</button>
       {track.duration > 0 && <span style={{ color: "#666", fontSize: 12, flexShrink: 0 }}>{formatTime(track.duration)}</span>}
     </div>
@@ -329,8 +282,88 @@ function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, i
       </div>
       <div style={{ color: "#666", fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.album || ""}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button onClick={(e) => { e.stopPropagation(); onAddToPlaylist?.(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#555", fontSize: 14, padding: 0, opacity: hover ? 1 : 0 }}>＋</button>
         <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "transparent", fontSize: 14, padding: 0, opacity: hover || liked ? 1 : 0 }}>♥</button>
         {track.duration > 0 && <span style={{ color: "#666", fontSize: 12 }}>{formatTime(track.duration)}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── USER PLAYLIST MANAGER ─────────────────────────────────────────────────────
+function UserPlaylistManager({ userPlaylists, onCreate, onDelete, onRename, onSelect }) {
+  const [newName, setNewName] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const inputStyle = { background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", flex: 1 };
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
+        <input value={newName} onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && newName.trim()) { onCreate(newName.trim()); setNewName(""); } }}
+          placeholder="New playlist name..." style={inputStyle} />
+        <button onClick={() => { if (newName.trim()) { onCreate(newName.trim()); setNewName(""); } }}
+          style={{ background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" }}>
+          + Create
+        </button>
+      </div>
+      {userPlaylists.length === 0 && <div style={{ color: "#555", fontSize: 13 }}>No playlists yet. Create one above!</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {userPlaylists.map(pl => (
+          <div key={pl.id} style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 24 }}>🎵</span>
+            {editingId === pl.id ? (
+              <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { onRename(pl.id, editName); setEditingId(null); } if (e.key === "Escape") setEditingId(null); }}
+                style={{ ...inputStyle, fontSize: 14, fontWeight: 600 }} />
+            ) : (
+              <div style={{ flex: 1, cursor: "pointer" }} onClick={() => onSelect(pl.id)}>
+                <div style={{ color: "#f0f0f0", fontWeight: 700, fontSize: 14 }}>{pl.name}</div>
+                <div style={{ color: "#555", fontSize: 12 }}>{pl.tracks.length} songs</div>
+              </div>
+            )}
+            <button onClick={() => { setEditingId(pl.id); setEditName(pl.name); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#888", fontSize: 16, padding: 4 }}>✏️</button>
+            <button onClick={() => onDelete(pl.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#e8435a", fontSize: 16, padding: 4 }}>🗑️</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── ADD TO PLAYLIST MODAL ─────────────────────────────────────────────────────
+function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreate, onClose }) {
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 28, width: 320, fontFamily: "'Segoe UI',sans-serif" }}>
+        <div style={{ fontWeight: 800, fontSize: 16, color: "#f0f0f0", marginBottom: 4 }}>Add to Playlist</div>
+        <div style={{ color: "#666", fontSize: 12, marginBottom: 20 }}>{track?.title}</div>
+        {userPlaylists.length === 0 && !creating && <div style={{ color: "#555", fontSize: 13, marginBottom: 16 }}>No playlists yet. Create one below!</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto", marginBottom: 16 }}>
+          {userPlaylists.map(pl => (
+            <button key={pl.id} onClick={() => { onAdd(pl.id); onClose(); }}
+              style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "10px 14px", cursor: "pointer", color: "#f0f0f0", fontFamily: "inherit", fontSize: 13, textAlign: "left" }}>
+              <span>🎵</span> {pl.name}
+              <span style={{ marginLeft: "auto", color: "#555", fontSize: 11 }}>{pl.tracks.length} songs</span>
+            </button>
+          ))}
+        </div>
+        {creating ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && newName.trim()) { onCreate(newName.trim()); setNewName(""); setCreating(false); } }}
+              placeholder="Playlist name..." style={{ flex: 1, background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "9px 12px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit" }} />
+            <button onClick={() => { if (newName.trim()) { onCreate(newName.trim()); setNewName(""); setCreating(false); } }}
+              style={{ background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 13, padding: "9px 14px", cursor: "pointer" }}>Create</button>
+            <button onClick={() => setCreating(false)} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontSize: 13, padding: "9px 12px", cursor: "pointer" }}>✕</button>
+          </div>
+        ) : (
+          <button onClick={() => setCreating(true)} style={{ width: "100%", background: "rgba(232,67,90,0.1)", border: "1px dashed rgba(232,67,90,0.4)", borderRadius: 10, color: "#e8435a", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px", cursor: "pointer" }}>
+            + New Playlist
+          </button>
+        )}
       </div>
     </div>
   );
@@ -649,14 +682,15 @@ export default function Musify() {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [featuredTracks, setFeaturedTracks] = useState([]);
-  const [newReleases, setNewReleases] = useState([]);
-  const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
-  const [loadingHome, setLoadingHome] = useState(true);
+  const [loadingHome, setLoadingHome] = useState(false);
   const [playlists, setPlaylists] = useState([{ id: "liked", name: "Liked Songs", tracks: [] }]);
   const [queue, setQueue] = useState([]);
   // Admin-managed songs (Cloudinary)
   const [adminSongs, setAdminSongs] = useState([]);
   const [cloudConfig, setCloudConfig] = useState({ cloudName: "", uploadPreset: "" });
+  // User playlists
+  const [userPlaylists, setUserPlaylists] = useState([]);
+  const [addToPlaylistModal, setAddToPlaylistModal] = useState(null); // track to add
 
   const searchTimeout = useRef(null);
   const isMobile = useIsMobile();
@@ -674,39 +708,19 @@ export default function Musify() {
   // Audio player (for Cloudinary tracks)
   const audio = useAudioPlayer(handleEnded);
 
-  // Load home data
-  useEffect(() => {
-    const load = async () => {
-      setLoadingHome(true);
-      const [spotifyTracks, releases, featured] = await Promise.all([
-        searchSpotifyTracks("top malayalam hits"),
-        getSpotifyNewReleases(),
-        getSpotifyFeatured(),
-      ]);
-      setFeaturedTracks(spotifyTracks.length > 0 ? spotifyTracks : await searchItunesForYT("top hits 2024"));
-      setNewReleases(releases);
-      setSpotifyPlaylists(featured);
-      setLoadingHome(false);
-    };
-    load();
-  }, []);
-
-  // Live search
+  // Live search (admin songs only)
   useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return; }
     clearTimeout(searchTimeout.current);
     setSearching(true);
-    searchTimeout.current = setTimeout(async () => {
-      // Search admin songs first
-      const localMatches = adminSongs.filter(s =>
+    searchTimeout.current = setTimeout(() => {
+      const matches = adminSongs.filter(s =>
         s.title.toLowerCase().includes(search.toLowerCase()) ||
         s.artist.toLowerCase().includes(search.toLowerCase())
       );
-      // Then search online
-      const onlineResults = await searchSpotifyTracks(search);
-      setSearchResults([...localMatches, ...onlineResults]);
+      setSearchResults(matches);
       setSearching(false);
-    }, 400);
+    }, 300);
   }, [search, adminSongs]);
 
   // Get video ID without API key
@@ -759,7 +773,7 @@ export default function Musify() {
     setLoadingTrack(false);
   }, [yt, audio, currentTrack, isPlaying]);
 
-  const currentQueue = queue.length > 0 ? queue : [...adminSongs, ...featuredTracks];
+  const currentQueue = queue.length > 0 ? queue : adminSongs;
 
   const handleNext = useCallback(() => {
     if (!currentTrack) return;
@@ -792,6 +806,28 @@ export default function Musify() {
     setPlaylists(pls);
   };
 
+  // User playlist helpers
+  const createUserPlaylist = (name) => {
+    const pl = { id: `upl-${Date.now()}`, name, tracks: [] };
+    setUserPlaylists(prev => [...prev, pl]);
+    return pl.id;
+  };
+  const addTrackToUserPlaylist = (plId, track) => {
+    setUserPlaylists(prev => prev.map(pl =>
+      pl.id === plId && !pl.tracks.find(t => t.id === track.id)
+        ? { ...pl, tracks: [...pl.tracks, track] }
+        : pl
+    ));
+  };
+  const removeTrackFromUserPlaylist = (plId, trackId) => {
+    setUserPlaylists(prev => prev.map(pl =>
+      pl.id === plId ? { ...pl, tracks: pl.tracks.filter(t => t.id !== trackId) } : pl
+    ));
+  };
+  const deleteUserPlaylist = (plId) => setUserPlaylists(prev => prev.filter(pl => pl.id !== plId));
+  const renameUserPlaylist = (plId, name) => setUserPlaylists(prev => prev.map(pl => pl.id === plId ? { ...pl, name } : pl));
+  const onSelectUserPlaylist = (plId) => { setSelectedPlaylist(plId); setView("userplaylist"); };
+
   const mobilePadBottom = currentTrack ? 160 : 70;
 
   // Determine progress/duration/volume based on active player
@@ -806,6 +842,7 @@ export default function Musify() {
     onPlay: () => handlePlay(track, list),
     liked: likedIds.has(track.id), onLike: () => handleLike(track),
     isMobile, loading: loadingTrack && currentTrack?.id === track.id,
+    onAddToPlaylist: () => setAddToPlaylistModal(track),
   });
 
   // Playlist tracks
@@ -829,7 +866,7 @@ export default function Musify() {
       {/* Hidden YouTube player */}
       <div ref={yt.containerRef} style={{ position: "fixed", top: -2, left: -2, width: 1, height: 1, opacity: 0, pointerEvents: "none", zIndex: -1 }} />
 
-      {!isMobile && <Sidebar view={view} setView={setView} playlists={playlists} selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} />}
+      {!isMobile && <Sidebar view={view} setView={setView} playlists={playlists} selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} userPlaylists={userPlaylists} onSelectUserPlaylist={onSelectUserPlaylist} />}
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: isMobile ? mobilePadBottom : 100 }}>
         {isMobile && (
@@ -843,7 +880,7 @@ export default function Musify() {
         {view === "home" && (
           <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4 }}>Good evening 🎵</h2>
-            <p style={{ color: "#555", fontSize: 12, marginBottom: 24 }}>Full songs via YouTube & Cloudinary • Search any song</p>
+
 
             {/* Admin songs section */}
             {adminSongs.length > 0 && (
@@ -863,49 +900,8 @@ export default function Musify() {
               </>
             )}
 
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>🎵 Top Malayalam Hits</h3>
-            {loadingHome ? <div style={{ color: "#555" }}>Loading...</div> : (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(150px,1fr))", gap: isMobile ? 10 : 14 }}>
-                {featuredTracks.slice(0, 12).map(t => (
-                  <div key={t.id} onClick={() => handlePlay(t, featuredTracks)}
-                    style={{ background: "#1a1a22", borderRadius: 12, padding: isMobile ? 10 : 14, cursor: "pointer", border: `1px solid ${currentTrack?.id === t.id ? "rgba(232,67,90,0.5)" : "rgba(255,255,255,0.06)"}` }}>
-                    <CoverArt cover={t.cover} size={isMobile ? "100%" : 120} title={t.title} />
-                    <div style={{ color: currentTrack?.id === t.id ? "#e8435a" : "#f0f0f0", fontWeight: 700, fontSize: 13, marginTop: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                    <div style={{ color: "#888", fontSize: 11, marginTop: 3 }}>{t.artist}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {newReleases.length > 0 && (
-              <>
-                <h3 style={{ fontSize: 15, fontWeight: 700, margin: "28px 0 14px" }}>🆕 New Releases</h3>
-                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
-                  {newReleases.map(t => (
-                    <div key={t.id} onClick={() => handlePlay(t, newReleases)}
-                      style={{ background: "#1a1a22", borderRadius: 12, padding: 10, minWidth: 130, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
-                      <CoverArt cover={t.cover} size={110} title={t.title} />
-                      <div style={{ color: "#f0f0f0", fontWeight: 600, fontSize: 12, marginTop: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                      <div style={{ color: "#888", fontSize: 11 }}>{t.artist}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {spotifyPlaylists.length > 0 && (
-              <>
-                <h3 style={{ fontSize: 15, fontWeight: 700, margin: "28px 0 14px" }}>🎧 Featured Playlists</h3>
-                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
-                  {spotifyPlaylists.map(p => (
-                    <div key={p.id} onClick={() => { setSearch(p.name); setView("search"); }}
-                      style={{ background: "#1a1a22", borderRadius: 12, padding: 10, minWidth: 130, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
-                      {p.images?.[0]?.url && <img src={p.images[0].url} alt={p.name} style={{ width: 110, height: 110, borderRadius: 8, objectFit: "cover" }} />}
-                      <div style={{ color: "#f0f0f0", fontWeight: 600, fontSize: 12, marginTop: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
+            {adminSongs.length === 0 && (
+              <div style={{ color: "#555", fontSize: 14, marginTop: 32 }}>No songs yet. Ask the admin to add some!</div>
             )}
           </div>
         )}
@@ -914,15 +910,9 @@ export default function Musify() {
         {view === "library" && (
           <div style={{ padding: isMobile ? "12px 0" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, padding: isMobile ? "0 16px" : 0 }}>Your Library</h2>
-            {adminSongs.length > 0 && (
-              <>
-                <div style={{ color: "#888", fontSize: 12, fontWeight: 700, padding: isMobile ? "0 16px" : "0 0 8px", marginBottom: 8, letterSpacing: 1 }}>☁️ MY COLLECTION</div>
-                {adminSongs.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, adminSongs)} />)}
-                <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", margin: "16px 0" }} />
-              </>
-            )}
-            {loadingHome ? <div style={{ color: "#555", padding: 16 }}>Loading...</div>
-              : featuredTracks.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, featuredTracks)} />)}
+            {adminSongs.length === 0
+              ? <div style={{ color: "#555", padding: isMobile ? "0 16px" : 0 }}>No songs yet. Ask the admin to add some!</div>
+              : adminSongs.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, adminSongs)} />)}
           </div>
         )}
 
@@ -970,7 +960,65 @@ export default function Musify() {
               : getPlaylistTracks(selectedPlaylist).map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, getPlaylistTracks(selectedPlaylist))} />)}
           </div>
         )}
+        {/* USER PLAYLISTS */}
+        {view === "userplaylists" && (
+          <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
+            <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20 }}>🎵 My Playlists</h2>
+            <UserPlaylistManager userPlaylists={userPlaylists} onCreate={createUserPlaylist} onDelete={deleteUserPlaylist} onRename={renameUserPlaylist} onSelect={onSelectUserPlaylist} />
+          </div>
+        )}
+
+        {/* USER PLAYLIST VIEW */}
+        {view === "userplaylist" && selectedPlaylist && (() => {
+          const pl = userPlaylists.find(p => p.id === selectedPlaylist);
+          if (!pl) return null;
+          return (
+            <div style={{ padding: isMobile ? "12px 0" : 32 }}>
+              <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, padding: isMobile ? "0 16px" : 0 }}>🎵 {pl.name}</h2>
+              {pl.tracks.length === 0
+                ? <div style={{ color: "#555", padding: isMobile ? "0 16px" : 0 }}>No songs yet. Tap ＋ on any song to add it here!</div>
+                : pl.tracks.map((t, i) => (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center" }}>
+                    <div style={{ flex: 1 }}><TrackRow {...trackRowProps(t, i, pl.tracks)} /></div>
+                    <button onClick={() => removeTrackFromUserPlaylist(pl.id, t.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#e8435a", fontSize: 16, padding: "0 16px", flexShrink: 0 }}>🗑</button>
+                  </div>
+                ))}
+            </div>
+          );
+        })()}
+
+        {/* USER SETTINGS */}
+        {view === "usersettings" && (
+          <div style={{ padding: isMobile ? "12px 16px" : 32, maxWidth: 480 }}>
+            <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 24 }}>⚙️ Settings</h2>
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>🎵 My Playlists</div>
+              <div style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>Create and manage your personal playlists. Tap ＋ on any song to add it to a playlist.</div>
+              <button onClick={() => setView("userplaylists")} style={{ background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" }}>Manage Playlists</button>
+            </div>
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24, marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>♥ Liked Songs</div>
+              <div style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>{likedTracks.length} liked songs</div>
+              <button onClick={() => setView("liked")} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" }}>View Liked Songs</button>
+            </div>
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>📚 Library</div>
+              <div style={{ color: "#666", fontSize: 13, marginBottom: 16 }}>Browse all available songs.</div>
+              <button onClick={() => setView("library")} style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" }}>Open Library</button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {addToPlaylistModal && (
+        <AddToPlaylistModal
+          track={addToPlaylistModal}
+          userPlaylists={userPlaylists}
+          onAdd={(plId) => addTrackToUserPlaylist(plId, addToPlaylistModal)}
+          onCreate={(name) => { const id = createUserPlaylist(name); addTrackToUserPlaylist(id, addToPlaylistModal); }}
+          onClose={() => setAddToPlaylistModal(null)}
+        />
+      )}
 
       <PlayerBar
         track={currentTrack} isPlaying={isPlaying} loading={loadingTrack}

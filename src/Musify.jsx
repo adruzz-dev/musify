@@ -14,9 +14,9 @@ import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL,
 } from "firebase/storage";
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // FIREBASE CONFIG
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const firebaseConfig = {
   apiKey: "AIzaSyDUZ3YuWky2VP-gN2PyrARig21qJquzc68",
   authDomain: "musify-39617.firebaseapp.com",
@@ -33,9 +33,9 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SONGS
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const SONGS = [
   {
     id: "1",
@@ -93,6 +93,14 @@ const SONGS = [
     audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3",
     cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg",
   },
+  {
+    id: "987438n6d",
+    title: "Bvv",
+    artist: "Bb",
+    album: "Bb",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779447548/KALYANI_vcsmqg.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779449356/artworks-X7VgPpOQzk6r1htx-1zjCOA-t500x500_fhil3r.jpg",
+  },
 ].filter((s) => s.id && s.title && s.audioUrl);
 
 const PLAYLISTS = [
@@ -111,9 +119,9 @@ function resolvePlaylists() {
   }));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // FIRESTORE HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const getUserDoc = async (uid) => {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? snap.data() : null;
@@ -136,9 +144,9 @@ const saveUserPlaylist = async (uid, playlist) =>
 const deleteUserPlaylist = async (uid, playlist) =>
   updateDoc(doc(db, "users", uid), { playlists: arrayRemove(playlist) });
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // UTILS
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function formatTime(secs) {
   if (!secs || isNaN(secs)) return "0:00";
   const m = Math.floor(secs / 60), s = Math.floor(secs % 60);
@@ -163,9 +171,9 @@ function generateId() {
   return `pl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // AUDIO PLAYER HOOK
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
@@ -267,11 +275,11 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // COVER ART
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function CoverArt({ cover, size = 48, title, radius = 6 }) {
-  const initials = title?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "♪";
+  const initials = title?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "âª";
   const sz = typeof size === "number" ? size : "100%";
   return cover ? (
     <img src={cover} alt={title} style={{ width: sz, height: sz, borderRadius: radius, objectFit: "cover", flexShrink: 0, display: "block" }} />
@@ -282,9 +290,9 @@ function CoverArt({ cover, size = 48, title, radius = 6 }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // ICON COMPONENTS (SVG inline, no deps)
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const Ico = {
   Home: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>,
   Search: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>,
@@ -306,9 +314,9 @@ const Ico = {
   Google: () => <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>,
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // STYLES (CSS-in-JS via style tag)
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const GlobalStyles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Circular+Std:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -346,9 +354,9 @@ const GlobalStyles = () => (
   `}</style>
 );
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SEEK BAR
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function SeekBar({ progress, duration, onSeek, style = {} }) {
   const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
   const safeProgress = progress && isFinite(progress) ? progress : 0;
@@ -362,9 +370,9 @@ function SeekBar({ progress, duration, onSeek, style = {} }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PLAYER BAR — Spotify-style bottom bar
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// PLAYER BAR â Spotify-style bottom bar
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle }) {
   const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
   const safeProgress = progress && isFinite(progress) ? progress : 0;
@@ -376,7 +384,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <CoverArt cover={track?.cover} size={40} title={track?.title} radius={4} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.title ?? "—"}</div>
+            <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.title ?? "â"}</div>
             <div style={{ color: "#888", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.artist ?? ""}</div>
           </div>
           <button className={`icon-btn${liked ? " active" : ""}`} onClick={onLike}><Ico.Heart filled={liked} /></button>
@@ -392,16 +400,16 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
 
   return (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: 90, background: "#0d0d14", borderTop: "1px solid rgba(255,255,255,0.07)", display: "grid", gridTemplateColumns: "1fr 2fr 1fr", alignItems: "center", padding: "0 24px", gap: 16, zIndex: 200 }}>
-      {/* Left — track info */}
+      {/* Left â track info */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
         <CoverArt cover={track?.cover} size={52} title={track?.title} radius={4} />
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: "#f0f0f0", fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.title ?? "—"}</div>
+          <div style={{ color: "#f0f0f0", fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.title ?? "â"}</div>
           <div style={{ color: "#888", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track?.artist ?? ""}</div>
         </div>
         <button className={`icon-btn${liked ? " active" : ""}`} onClick={onLike} style={{ marginLeft: 4, flexShrink: 0 }}><Ico.Heart filled={liked} /></button>
       </div>
-      {/* Center — controls + seek */}
+      {/* Center â controls + seek */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <button className={`icon-btn${shuffle ? " active" : ""}`} onClick={onShuffleToggle}><Ico.Shuffle /></button>
@@ -422,7 +430,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
           <span style={{ color: "#888", fontSize: 11, minWidth: 32 }}>{formatTime(safeDuration)}</span>
         </div>
       </div>
-      {/* Right — volume */}
+      {/* Right â volume */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" }}>
         <button className="icon-btn"><Ico.Volume /></button>
         <div className="volume-bar"
@@ -434,9 +442,9 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SONG ROW
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -467,15 +475,15 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SIDEBAR
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist }) {
   return (
     <div style={{ width: 240, background: "#0a0a0f", display: "flex", flexDirection: "column", gap: 2, padding: "16px 8px", overflowY: "auto", flexShrink: 0, borderRight: "1px solid rgba(255,255,255,0.04)" }}>
       {/* Logo */}
       <div style={{ padding: "8px 12px 20px", display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8435a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>♪</div>
+        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#e8435a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>âª</div>
         <span style={{ fontWeight: 800, fontSize: 18, color: "#fff", letterSpacing: "-0.5px" }}>Musify</span>
       </div>
 
@@ -511,7 +519,7 @@ function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelec
       {/* User playlists */}
       {userPlaylists?.map((pl) => (
         <button key={pl.id} className="sidebar-item" onClick={() => onSelectPlaylist(pl)}>
-          <div style={{ width: 30, height: 30, borderRadius: 3, background: "#1a1a24", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>♪</div>
+          <div style={{ width: 30, height: 30, borderRadius: 3, background: "#1a1a24", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>âª</div>
           <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.name}</span>
         </button>
       ))}
@@ -519,9 +527,9 @@ function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelec
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // HOME VIEW
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function HomeView({ user, onSelectPlaylist, currentTrack, onPlay, isPlaying, likedSongs, onLike }) {
   const playlists = resolvePlaylists();
   return (
@@ -562,9 +570,9 @@ function HomeView({ user, onSelectPlaylist, currentTrack, onPlay, isPlaying, lik
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // SEARCH VIEW
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function SearchView({ currentTrack, isPlaying, onPlay, likedSongs, onLike }) {
   const [q, setQ] = useState("");
   const results = q.trim()
@@ -602,9 +610,9 @@ function SearchView({ currentTrack, isPlaying, onPlay, likedSongs, onLike }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // PLAYLIST VIEW
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function PlaylistView({ playlist, currentTrack, isPlaying, onPlay, likedSongs, onLike }) {
   const songs = playlist.songs || [];
   return (
@@ -638,15 +646,15 @@ function PlaylistView({ playlist, currentTrack, isPlaying, onPlay, likedSongs, o
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // LIKED VIEW
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function LikedView({ likedSongs, currentTrack, isPlaying, onPlay, onLike }) {
   const songs = SONGS.filter((s) => likedSongs.includes(s.id));
   return (
     <div className="fade-in" style={{ paddingBottom: 120 }}>
       <div style={{ padding: "48px 32px 32px", background: "linear-gradient(180deg,rgba(232,67,90,0.3) 0%,transparent 100%)", display: "flex", alignItems: "flex-end", gap: 28 }}>
-        <div style={{ width: 180, height: 180, borderRadius: 6, background: "linear-gradient(135deg,#7c1a2a,#e8435a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60 }}>♥</div>
+        <div style={{ width: 180, height: 180, borderRadius: 6, background: "linear-gradient(135deg,#7c1a2a,#e8435a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60 }}>â¥</div>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#ccc", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: 8 }}>Playlist</div>
           <h1 style={{ fontSize: 36, fontWeight: 800, color: "#fff", lineHeight: 1.1, marginBottom: 12 }}>Liked Songs</h1>
@@ -667,9 +675,9 @@ function LikedView({ likedSongs, currentTrack, isPlaying, onPlay, onLike }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // AUTH VIEW
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function AuthView({ onClose }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState(""), [pass, setPass] = useState(""), [name, setName] = useState("");
@@ -707,7 +715,7 @@ function AuthView({ onClose }) {
       <div style={{ background: "#111118", borderRadius: 14, padding: "36px 32px", width: "100%", maxWidth: 400, position: "relative" }}>
         <button className="icon-btn" onClick={onClose} style={{ position: "absolute", top: 16, right: 16 }}><Ico.X /></button>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 28, marginBottom: 6 }}>♪</div>
+          <div style={{ fontSize: 28, marginBottom: 6 }}>âª</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{mode === "login" ? "Log in to Musify" : "Sign up for Musify"}</h2>
         </div>
 
@@ -742,9 +750,9 @@ function AuthView({ onClose }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // MOBILE BOTTOM NAV
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function MobileNav({ view, setView }) {
   const items = [
     { id: "home", label: "Home", Icon: Ico.Home },
@@ -763,9 +771,9 @@ function MobileNav({ view, setView }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // TOP BAR (desktop)
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function TopBar({ user, onShowAuth, onSignOut }) {
   const [open, setOpen] = useState(false);
   return (
@@ -798,9 +806,9 @@ function TopBar({ user, onShowAuth, onSignOut }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // LIBRARY VIEW
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function LibraryView({ user, userPlaylists, onSelectPlaylist, onShowAuth }) {
   const playlists = resolvePlaylists();
   return (
@@ -823,7 +831,7 @@ function LibraryView({ user, userPlaylists, onSelectPlaylist, onShowAuth }) {
         {userPlaylists?.map((pl) => (
           <div key={pl.id} className="card" onClick={() => onSelectPlaylist(pl)} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ width: "100%", paddingTop: "100%", position: "relative" }}>
-              <div style={{ position: "absolute", inset: 0, borderRadius: 6, background: "#1a1a24", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>♪</div>
+              <div style={{ position: "absolute", inset: 0, borderRadius: 6, background: "#1a1a24", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>âª</div>
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#f0f0f0" }}>{pl.name}</div>
           </div>
@@ -833,9 +841,9 @@ function LibraryView({ user, userPlaylists, onSelectPlaylist, onShowAuth }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // APP ROOT
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export default function App() {
   const isMobile = useIsMobile();
   const [view, setView] = useState("home");
@@ -959,7 +967,7 @@ export default function App() {
         {isMobile && (
           <div style={{ flex: 1, overflowY: "auto", paddingTop: 8 }}>
             <div style={{ padding: "16px 20px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 800, fontSize: 20, color: "#fff" }}>♪ Musify</span>
+              <span style={{ fontWeight: 800, fontSize: 20, color: "#fff" }}>âª Musify</span>
               {user ? (
                 <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#e8435a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>
                   {user.displayName?.[0]?.toUpperCase() || "U"}

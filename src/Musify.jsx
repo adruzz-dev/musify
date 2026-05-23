@@ -1,73 +1,32 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
-// ─── API CONFIG ────────────────────────────────────────────────────────────────
-const SPOTIFY_CLIENT_ID = process.env.REACT_APP_SPOTIFY_CLIENT_ID;
-const SPOTIFY_CLIENT_SECRET = process.env.REACT_APP_SPOTIFY_CLIENT_SECRET;
-const LASTFM_API_KEY = process.env.REACT_APP_LASTFM_API_KEY || "YOUR_LASTFM_API_KEY";
+// ─── ADMIN PASSWORD ─────────────────────────────────────────────────────────────
+const ADMIN_PASSWORD = "musify@admin";
 
-
-// ─── API HELPERS ───────────────────────────────────────────────────────────────
-
-// ── iTunes Search API (no key, no CORS issues) ──
-const searchItunes = async (query) => {
-  const res = await fetch(
-    `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=20`
-  );
+// ─── CLOUDINARY UPLOAD ─────────────────────────────────────────────────────────
+const uploadToCloudinary = async (file, cloudName, uploadPreset, resourceType = "auto") => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+    method: "POST",
+    body: formData,
+  });
   const data = await res.json();
-  return (data.results || []).map(normalizeItunesTrack);
+  if (data.secure_url) return data.secure_url;
+  throw new Error(data.error?.message || "Upload failed");
 };
 
-const getItunesTopCharts = async () => {
-  // iTunes RSS feed — returns top 20 songs, no CORS issues
-  const res = await fetch(
-    "https://itunes.apple.com/us/rss/topsongs/limit=20/json"
-  );
-  const data = await res.json();
-  const entries = data?.feed?.entry || [];
-  return entries.map((e) => ({
-    id: `itunes-${e.id?.attributes?.["im:id"]}`,
-    title: e["im:name"]?.label || "Unknown",
-    artist: e["im:artist"]?.label || "Unknown",
-    album: e["im:collection"]?.["im:name"]?.label || "",
-    duration: 30,
-    genre: e.category?.attributes?.label || "",
-    cover: e["im:image"]?.[2]?.label || e["im:image"]?.[0]?.label || "",
-    src: null, // RSS feed doesn't include previews
-  }));
-};
-
-const searchItunesByArtist = async (artist) => {
-  const res = await fetch(
-    `https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&media=music&entity=song&limit=20`
-  );
-  const data = await res.json();
-  return (data.results || []).map(normalizeItunesTrack);
-};
-
-const normalizeItunesTrack = (t) => ({
-  id: `itunes-${t.trackId}`,
-  title: t.trackName || "Unknown",
-  artist: t.artistName || "Unknown",
-  album: t.collectionName || "",
-  duration: Math.floor((t.trackTimeMillis || 30000) / 1000),
-  genre: t.primaryGenreName || "",
-  cover: t.artworkUrl100 || t.artworkUrl60 || "",
-  src: t.previewUrl || null, // 30s preview MP3
-});
-
-// Spotify — Client Credentials Flow
-let spotifyToken = null;
-let spotifyTokenExpiry = 0;
-
+// ─── SPOTIFY ───────────────────────────────────────────────────────────────────
+const SPOTIFY_CLIENT_ID = "3e5e5882ff8a49f5ad0ba92f7a8885a6";
+const SPOTIFY_CLIENT_SECRET = "81fc642a1f2f429f8803847e2e4e4445";
+let spotifyToken = null, spotifyTokenExpiry = 0;
 const getSpotifyToken = async () => {
   if (spotifyToken && Date.now() < spotifyTokenExpiry) return spotifyToken;
   try {
     const res = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
-      headers: {
-        Authorization: "Basic " + btoa(SPOTIFY_CLIENT_ID + ":" + SPOTIFY_CLIENT_SECRET),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { Authorization: "Basic " + btoa(SPOTIFY_CLIENT_ID + ":" + SPOTIFY_CLIENT_SECRET), "Content-Type": "application/x-www-form-urlencoded" },
       body: "grant_type=client_credentials",
     });
     const data = await res.json();
@@ -76,113 +35,163 @@ const getSpotifyToken = async () => {
     return spotifyToken;
   } catch { return null; }
 };
-
 const spotifyGet = async (path) => {
   const token = await getSpotifyToken();
   if (!token) return null;
-  try {
-    const res = await fetch(`https://api.spotify.com/v1${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.json();
-  } catch { return null; }
+  try { const res = await fetch(`https://api.spotify.com/v1${path}`, { headers: { Authorization: `Bearer ${token}` } }); return res.json(); } catch { return null; }
 };
-
-const searchSpotify = async (query) => {
+const searchSpotifyTracks = async (query) => {
   const data = await spotifyGet(`/search?q=${encodeURIComponent(query)}&type=track&limit=20`);
-  return (data?.tracks?.items || []).map(normalizeSpotifyTrack);
+  return (data?.tracks?.items || []).map((t) => ({
+    id: `yt-spotify-${t.id}`, videoId: null,
+    searchQuery: `${t.name} ${t.artists?.[0]?.name} official audio`,
+    title: t.name, artist: t.artists?.[0]?.name || "Unknown",
+    album: t.album?.name || "", duration: Math.floor((t.duration_ms || 0) / 1000),
+    genre: "", cover: t.album?.images?.[0]?.url || "", source: "spotify",
+  }));
 };
-
-const getSpotifyFeaturedPlaylists = async () => {
+const getSpotifyNewReleases = async () => {
+  const data = await spotifyGet("/browse/new-releases?limit=10");
+  return (data?.albums?.items || []).map((a) => ({
+    id: `yt-album-${a.id}`, videoId: null,
+    searchQuery: `${a.name} ${a.artists?.[0]?.name} official audio`,
+    title: a.name, artist: a.artists?.[0]?.name || "Unknown",
+    album: a.name, duration: 0, genre: "", cover: a.images?.[0]?.url || "", source: "spotify",
+  }));
+};
+const getSpotifyFeatured = async () => {
   const data = await spotifyGet("/browse/featured-playlists?limit=6");
   return data?.playlists?.items || [];
 };
-
-const getSpotifyRecommendations = async (trackId, artistId, genreSeeds = []) => {
-  const seeds = trackId ? `seed_tracks=${trackId}` : `seed_artists=${artistId}`;
-  const data = await spotifyGet(`/recommendations?${seeds}&limit=10`);
-  return (data?.tracks || []).map(normalizeSpotifyTrack);
-};
-
-const getSpotifyNewReleases = async () => {
-  const data = await spotifyGet("/browse/new-releases?limit=12");
-  return (data?.albums?.items || []).map((a) => ({
-    id: `spotify-album-${a.id}`,
-    title: a.name,
-    artist: a.artists?.[0]?.name || "Unknown",
-    album: a.name,
-    duration: 30,
-    genre: "",
-    cover: a.images?.[0]?.url || "",
-    src: null,
-    spotifyUrl: a.external_urls?.spotify,
-  }));
-};
-
-const normalizeSpotifyTrack = (t) => ({
-  id: `spotify-${t.id}`,
-  title: t.name,
-  artist: t.artists?.[0]?.name || "Unknown",
-  album: t.album?.name || "",
-  duration: Math.floor((t.duration_ms || 30000) / 1000),
-  genre: "",
-  cover: t.album?.images?.[0]?.url || "",
-  src: t.preview_url || null, // 30s preview
-  spotifyId: t.id,
-  spotifyArtistId: t.artists?.[0]?.id,
-  spotifyUrl: t.external_urls?.spotify,
-});
-
-// Last.fm — needs API key
-const getArtistInfo = async (artistName) => {
-  if (LASTFM_API_KEY === "YOUR_LASTFM_API_KEY") return null;
+const searchItunesForYT = async (query) => {
   try {
-    const res = await fetch(
-      `https://ws.audioscrobbler.com/2.0/?method=artist.getinfo&artist=${encodeURIComponent(artistName)}&api_key=${LASTFM_API_KEY}&format=json`
-    );
+    const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&limit=20`);
     const data = await res.json();
-    return data.artist || null;
-  } catch { return null; }
-};
-
-const getSimilarArtists = async (artistName) => {
-  if (LASTFM_API_KEY === "YOUR_LASTFM_API_KEY") return [];
-  try {
-    const res = await fetch(
-      `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${LASTFM_API_KEY}&limit=5&format=json`
-    );
-    const data = await res.json();
-    return data.similarartists?.artist || [];
+    return (data.results || []).map((t) => ({
+      id: `yt-itunes-${t.trackId}`, videoId: null,
+      searchQuery: `${t.trackName} ${t.artistName} official audio`,
+      title: t.trackName || "Unknown", artist: t.artistName || "Unknown",
+      album: t.collectionName || "", duration: Math.floor((t.trackTimeMillis || 0) / 1000),
+      genre: t.primaryGenreName || "", cover: t.artworkUrl100 || "", source: "itunes",
+    }));
   } catch { return []; }
 };
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────────
-
 function formatTime(secs) {
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
+  if (!secs) return "0:00";
+  const m = Math.floor(secs / 60), s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
-
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth <= 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    const h = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
   }, []);
   return isMobile;
 }
+function generateId() { return `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
+
+// ─── YOUTUBE PLAYER HOOK ───────────────────────────────────────────────────────
+function useYouTubePlayer(onEnded) {
+  const playerRef = useRef(null);
+  const containerRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(80);
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    if (!window.YT) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    }
+    const initPlayer = () => {
+      if (playerRef.current) return;
+      playerRef.current = new window.YT.Player(containerRef.current, {
+        height: "1", width: "1",
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0 },
+        events: {
+          onReady: () => setReady(true),
+          onStateChange: (e) => {
+            if (e.data === window.YT.PlayerState.ENDED) onEnded?.();
+            if (e.data === window.YT.PlayerState.PLAYING) {
+              clearInterval(intervalRef.current);
+              intervalRef.current = setInterval(() => {
+                setProgress(playerRef.current?.getCurrentTime?.() || 0);
+                setDuration(playerRef.current?.getDuration?.() || 0);
+              }, 500);
+            } else clearInterval(intervalRef.current);
+          },
+        },
+      });
+    };
+    if (window.YT?.Player) initPlayer();
+    else window.onYouTubeIframeAPIReady = initPlayer;
+    return () => clearInterval(intervalRef.current);
+  }, []);
+
+  const loadVideo = useCallback((videoId) => {
+    if (!playerRef.current) return;
+    playerRef.current.loadVideoById(videoId);
+    playerRef.current.setVolume(volume);
+  }, [volume]);
+
+  return {
+    containerRef, ready, progress, duration, volume,
+    loadVideo,
+    play: () => playerRef.current?.playVideo(),
+    pause: () => playerRef.current?.pauseVideo(),
+    seek: (ratio) => { const dur = playerRef.current?.getDuration?.() || 0; playerRef.current?.seekTo(ratio * dur, true); },
+    setVol: (v) => { setVolume(v); playerRef.current?.setVolume(v); },
+  };
+}
+
+// ─── AUDIO PLAYER HOOK (for Cloudinary mp3) ────────────────────────────────────
+function useAudioPlayer(onEnded) {
+  const audioRef = useRef(null);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.8);
+  const [ready, setReady] = useState(true);
+
+  useEffect(() => {
+    audioRef.current = new Audio();
+    audioRef.current.volume = volume;
+    audioRef.current.addEventListener("ended", () => onEnded?.());
+    audioRef.current.addEventListener("timeupdate", () => setProgress(audioRef.current.currentTime));
+    audioRef.current.addEventListener("loadedmetadata", () => setDuration(audioRef.current.duration));
+    return () => { audioRef.current?.pause(); audioRef.current = null; };
+  }, []);
+
+  const loadAudio = useCallback((url) => {
+    if (!audioRef.current) return;
+    audioRef.current.src = url;
+    audioRef.current.load();
+    audioRef.current.play();
+  }, []);
+
+  return {
+    ready, progress, duration, volume: Math.round(volume * 100),
+    loadAudio,
+    play: () => audioRef.current?.play(),
+    pause: () => audioRef.current?.pause(),
+    seek: (ratio) => { if (audioRef.current) audioRef.current.currentTime = ratio * (audioRef.current.duration || 0); },
+    setVol: (v) => { const val = v / 100; setVolume(val); if (audioRef.current) audioRef.current.volume = val; },
+  };
+}
 
 // ─── COMPONENTS ────────────────────────────────────────────────────────────────
-
 function CoverArt({ cover, size = 48, title }) {
   const initials = title?.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
-  const isImage = cover && (cover.startsWith("/") || cover.startsWith("http"));
-  return isImage ? (
+  return cover ? (
     <img src={cover} alt={title} style={{ width: size, height: size, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
   ) : (
-    <div style={{ width: size, height: size, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#9b2335)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: size * 0.28, fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>
+    <div style={{ width: size, height: size, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#9b2335)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: typeof size === "number" ? size * 0.28 : 14, fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>
       {initials}
     </div>
   );
@@ -190,59 +199,60 @@ function CoverArt({ cover, size = 48, title }) {
 
 const ctrlBtn = { background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: 18, padding: 4 };
 
-function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile }) {
-  if (isMobile) {
-    return (
-      <div style={{ position: "fixed", bottom: 56, left: 0, right: 0, background: "linear-gradient(0deg,#0a0a0f 80%,rgba(10,10,15,0.92) 100%)", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 16px", zIndex: 100 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <span style={{ color: "#666", fontSize: 10, minWidth: 28, textAlign: "right" }}>{formatTime(progress)}</span>
-          <div onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onSeek((e.clientX - r.left) / r.width); }}
-            style={{ flex: 1, height: 3, background: "#2a2a2a", borderRadius: 2, cursor: "pointer" }}>
-            <div style={{ width: `${(progress / (duration || 1)) * 100}%`, height: "100%", background: "#e8435a", borderRadius: 2 }} />
-          </div>
-          <span style={{ color: "#666", fontSize: 10, minWidth: 28 }}>{formatTime(duration)}</span>
+function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, loading }) {
+  if (isMobile) return (
+    <div style={{ position: "fixed", bottom: 56, left: 0, right: 0, background: "linear-gradient(0deg,#0a0a0f 80%,rgba(10,10,15,0.92))", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 16px", zIndex: 100 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ color: "#666", fontSize: 10, minWidth: 28, textAlign: "right" }}>{formatTime(progress)}</span>
+        <div onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onSeek((e.clientX - r.left) / r.width); }} style={{ flex: 1, height: 3, background: "#2a2a2a", borderRadius: 2, cursor: "pointer" }}>
+          <div style={{ width: `${(progress / (duration || 1)) * 100}%`, height: "100%", background: "#e8435a", borderRadius: 2, transition: "width 0.3s" }} />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {track && <CoverArt cover={track.cover} size={40} title={track.title} />}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.title ?? "—"}</div>
-            <div style={{ color: "#888", fontSize: 11 }}>{track?.artist ?? ""}</div>
-          </div>
-          {track && <button onClick={onLike} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#555", fontSize: 18 }}>{liked ? "♥" : "♡"}</button>}
-          <button onClick={onPrev} style={ctrlBtn}>⏮</button>
-          <button onClick={onToggle} style={{ width: 36, height: 36, borderRadius: "50%", background: "#e8435a", border: "none", cursor: "pointer", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>{isPlaying ? "⏸" : "▶"}</button>
-          <button onClick={onNext} style={ctrlBtn}>⏭</button>
-        </div>
+        <span style={{ color: "#666", fontSize: 10, minWidth: 28 }}>{formatTime(duration)}</span>
       </div>
-    );
-  }
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {track && <CoverArt cover={track.cover} size={40} title={track.title} />}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.title ?? "—"}</div>
+          <div style={{ color: "#888", fontSize: 11 }}>{track?.artist ?? "Select a song to play"}</div>
+        </div>
+        {track && <button onClick={onLike} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#555", fontSize: 18 }}>{liked ? "♥" : "♡"}</button>}
+        <button onClick={onPrev} style={ctrlBtn}>⏮</button>
+        <button onClick={onToggle} style={{ width: 36, height: 36, borderRadius: "50%", background: "#e8435a", border: "none", cursor: "pointer", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {loading ? "⏳" : isPlaying ? "⏸" : "▶"}
+        </button>
+        <button onClick={onNext} style={ctrlBtn}>⏭</button>
+      </div>
+    </div>
+  );
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(0deg,#0a0a0f 80%,rgba(10,10,15,0.92) 100%)", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 24px 16px", display: "flex", alignItems: "center", gap: 24, zIndex: 100 }}>
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "linear-gradient(0deg,#0a0a0f 80%,rgba(10,10,15,0.92))", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 24px 16px", display: "flex", alignItems: "center", gap: 24, zIndex: 100 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 200, flex: 1 }}>
         {track && <CoverArt cover={track.cover} size={44} title={track.title} />}
         <div>
           <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600 }}>{track?.title ?? "—"}</div>
-          <div style={{ color: "#888", fontSize: 11 }}>{track?.artist ?? ""}</div>
+          <div style={{ color: "#888", fontSize: 11 }}>{track?.artist ?? "Select a song to play"}</div>
         </div>
         {track && <button onClick={onLike} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#555", fontSize: 16 }}>{liked ? "♥" : "♡"}</button>}
       </div>
       <div style={{ flex: 2, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <button onClick={onPrev} style={ctrlBtn}>⏮</button>
-          <button onClick={onToggle} style={{ width: 36, height: 36, borderRadius: "50%", background: "#e8435a", border: "none", cursor: "pointer", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>{isPlaying ? "⏸" : "▶"}</button>
+          <button onClick={onToggle} style={{ width: 36, height: 36, borderRadius: "50%", background: "#e8435a", border: "none", cursor: "pointer", color: "#fff", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {loading ? "⏳" : isPlaying ? "⏸" : "▶"}
+          </button>
           <button onClick={onNext} style={ctrlBtn}>⏭</button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
           <span style={{ color: "#666", fontSize: 11, minWidth: 32, textAlign: "right" }}>{formatTime(progress)}</span>
           <div onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onSeek((e.clientX - r.left) / r.width); }} style={{ flex: 1, height: 4, background: "#2a2a2a", borderRadius: 2, cursor: "pointer" }}>
-            <div style={{ width: `${(progress / (duration || 1)) * 100}%`, height: "100%", background: "#e8435a", borderRadius: 2 }} />
+            <div style={{ width: `${(progress / (duration || 1)) * 100}%`, height: "100%", background: "#e8435a", borderRadius: 2, transition: "width 0.3s" }} />
           </div>
           <span style={{ color: "#666", fontSize: 11, minWidth: 32 }}>{formatTime(duration)}</span>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, justifyContent: "flex-end" }}>
         <span style={{ color: "#666" }}>🔊</span>
-        <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => onVolume(parseFloat(e.target.value))} style={{ width: 80, accentColor: "#e8435a" }} />
+        <input type="range" min={0} max={100} step={1} value={volume} onChange={(e) => onVolume(parseInt(e.target.value))} style={{ width: 80, accentColor: "#e8435a" }} />
       </div>
     </div>
   );
@@ -263,7 +273,8 @@ function Sidebar({ view, setView, playlists, selectedPlaylist, setSelectedPlayli
       {navItem("search", "Search", "🔍")}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", margin: "16px 0 12px", paddingTop: 16, paddingLeft: 14, color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>PLAYLISTS</div>
       {playlists.map((pl) => (
-        <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }} style={{ background: view === "playlist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.06)" : "none", border: "none", borderRadius: 8, cursor: "pointer", color: view === "playlist" && selectedPlaylist === pl.id ? "#f0f0f0" : "#777", fontFamily: "inherit", fontSize: 12, padding: "8px 14px", width: "100%", textAlign: "left" }}>
+        <button key={pl.id} onClick={() => { setSelectedPlaylist(pl.id); setView("playlist"); }}
+          style={{ background: view === "playlist" && selectedPlaylist === pl.id ? "rgba(255,255,255,0.06)" : "none", border: "none", borderRadius: 8, cursor: "pointer", color: view === "playlist" && selectedPlaylist === pl.id ? "#f0f0f0" : "#777", fontFamily: "inherit", fontSize: 12, padding: "8px 14px", width: "100%", textAlign: "left" }}>
           {pl.name}
         </button>
       ))}
@@ -273,320 +284,558 @@ function Sidebar({ view, setView, playlists, selectedPlaylist, setSelectedPlayli
 
 function BottomNav({ view, setView }) {
   const items = [
-    { id: "home", icon: "🏠", label: "Home" },
-    { id: "search", icon: "🔍", label: "Search" },
-    { id: "library", icon: "📚", label: "Library" },
-    { id: "liked", icon: "♥", label: "Liked" },
+    { id: "home", label: "Home", icon: "🏠" },
+    { id: "search", label: "Search", icon: "🔍" },
+    { id: "library", label: "Library", icon: "📚" },
+    { id: "liked", label: "Liked", icon: "♥" },
   ];
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0d0d12", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", zIndex: 200, height: 56 }}>
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0d0d12", borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", zIndex: 101, height: 56 }}>
       {items.map((item) => (
-        <button key={item.id} onClick={() => setView(item.id)}
-          style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, color: view === item.id ? "#e8435a" : "#666", fontSize: 10, fontFamily: "inherit", fontWeight: 600 }}>
-          <span style={{ fontSize: 20 }}>{item.icon}</span>
-          {item.label}
+        <button key={item.id} onClick={() => setView(item.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, color: view === item.id ? "#e8435a" : "#666", fontSize: 10, fontFamily: "inherit", fontWeight: 600 }}>
+          <span style={{ fontSize: 20 }}>{item.icon}</span>{item.label}
         </button>
       ))}
     </div>
   );
 }
 
-function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, isMobile, onArtistClick }) {
+function TrackRow({ track, index, isPlaying, isCurrent, onPlay, onLike, liked, isMobile, loading }) {
   const [hover, setHover] = useState(false);
-  if (isMobile) {
-    return (
-      <div onClick={onPlay} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.08)" : "transparent" }}>
-        <div style={{ color: isCurrent ? "#e8435a" : "#666", fontSize: 13, width: 20, textAlign: "center", flexShrink: 0 }}>
-          {isCurrent && isPlaying ? "⏸" : "▶"}
-        </div>
-        <CoverArt cover={track.cover} size={44} title={track.title} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: isCurrent ? "#e8435a" : "#f0f0f0", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
-          <div onClick={(e) => { e.stopPropagation(); onArtistClick?.(track.artist); }} style={{ color: "#777", fontSize: 12, cursor: onArtistClick ? "pointer" : "default" }}>{track.artist}</div>
-        </div>
-        <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#555", fontSize: 18, padding: 4, flexShrink: 0 }}>
-          {liked ? "♥" : "♡"}
-        </button>
-        <span style={{ color: "#666", fontSize: 12, flexShrink: 0 }}>{formatTime(track.duration)}</span>
+  if (isMobile) return (
+    <div onClick={onPlay} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.08)" : "transparent", cursor: "pointer" }}>
+      <div style={{ color: isCurrent ? "#e8435a" : "#666", fontSize: 13, width: 20, textAlign: "center", flexShrink: 0 }}>
+        {isCurrent && loading ? "⏳" : isCurrent && isPlaying ? "⏸" : "▶"}
       </div>
-    );
-  }
+      <CoverArt cover={track.cover} size={44} title={track.title} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ color: isCurrent ? "#e8435a" : "#f0f0f0", fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
+        <div style={{ color: "#777", fontSize: 12 }}>{track.artist}</div>
+      </div>
+      <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "#555", fontSize: 18, padding: 4, flexShrink: 0 }}>{liked ? "♥" : "♡"}</button>
+      {track.duration > 0 && <span style={{ color: "#666", fontSize: 12, flexShrink: 0 }}>{formatTime(track.duration)}</span>}
+    </div>
+  );
   return (
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onDoubleClick={onPlay}
-      style={{ display: "grid", gridTemplateColumns: "32px 48px 1fr 80px 40px", alignItems: "center", gap: 12, padding: "6px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.08)" : hover ? "rgba(255,255,255,0.04)" : "transparent", cursor: "pointer" }}>
+      style={{ display: "grid", gridTemplateColumns: "32px 48px 1fr 120px 40px", alignItems: "center", gap: 12, padding: "6px 16px", borderRadius: 8, background: isCurrent ? "rgba(232,67,90,0.08)" : hover ? "rgba(255,255,255,0.04)" : "transparent", cursor: "pointer" }}>
       <div style={{ color: isCurrent ? "#e8435a" : "#666", fontSize: 13, textAlign: "center" }}>
-        {hover || isCurrent ? <span onClick={onPlay}>{isCurrent && isPlaying ? "⏸" : "▶"}</span> : index + 1}
+        {hover || isCurrent ? <span onClick={onPlay}>{isCurrent && loading ? "⏳" : isCurrent && isPlaying ? "⏸" : "▶"}</span> : index + 1}
       </div>
       <CoverArt cover={track.cover} size={40} title={track.title} />
       <div>
         <div style={{ color: isCurrent ? "#e8435a" : "#f0f0f0", fontSize: 13, fontWeight: 600 }}>{track.title}</div>
-        <div onClick={(e) => { e.stopPropagation(); onArtistClick?.(track.artist); }} style={{ color: "#777", fontSize: 11, cursor: onArtistClick ? "pointer" : "default", display: "inline-block" }}
-          onMouseEnter={(e) => { if (onArtistClick) e.target.style.color = "#e8435a"; }}
-          onMouseLeave={(e) => { e.target.style.color = "#777"; }}>
-          {track.artist}
-        </div>
+        <div style={{ color: "#777", fontSize: 11 }}>{track.artist}</div>
       </div>
-      <div style={{ color: "#666", fontSize: 12 }}>{track.genre || track.album}</div>
+      <div style={{ color: "#666", fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.album || ""}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <button onClick={(e) => { e.stopPropagation(); onLike(); }} style={{ background: "none", border: "none", cursor: "pointer", color: liked ? "#e8435a" : "transparent", fontSize: 14, padding: 0, opacity: hover || liked ? 1 : 0 }}>♥</button>
-        <span style={{ color: "#666", fontSize: 12 }}>{formatTime(track.duration)}</span>
+        {track.duration > 0 && <span style={{ color: "#666", fontSize: 12 }}>{formatTime(track.duration)}</span>}
       </div>
     </div>
   );
 }
 
-// Artist Info Modal (Last.fm)
-function ArtistModal({ artist, info, similar, onClose, onSearch }) {
+// ─── ADMIN PANEL ───────────────────────────────────────────────────────────────
+function AdminPanel({ songs, playlists, onSave, onBack, cloudConfig, setCloudConfig }) {
+  const [authed, setAuthed] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [tab, setTab] = useState("songs"); // songs | playlists | settings
+  const [songList, setSongList] = useState(songs);
+  const [playlistList, setPlaylistList] = useState(playlists.filter(p => p.id !== "liked"));
+  const [editingSong, setEditingSong] = useState(null);
+  const [editingPlaylist, setEditingPlaylist] = useState(null);
+  const [form, setForm] = useState({ title: "", artist: "", album: "", cover: "", audioUrl: "", playlist: "", youtubeId: "" });
+  const [plForm, setPlForm] = useState({ name: "" });
+  const [uploading, setUploading] = useState({ cover: false, audio: false });
+  const [uploadErr, setUploadErr] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [cloudForm, setCloudForm] = useState(cloudConfig);
+  const coverInputRef = useRef(null);
+  const audioInputRef = useRef(null);
+
+  const inputStyle = { width: "100%", background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px 14px", color: "#f0f0f0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+  const labelStyle = { color: "#888", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 4, display: "block" };
+  const btnPrimary = { background: "#e8435a", border: "none", borderRadius: 8, color: "#fff", fontFamily: "inherit", fontWeight: 700, fontSize: 13, padding: "10px 20px", cursor: "pointer" };
+  const btnSecondary = { background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#aaa", fontFamily: "inherit", fontWeight: 600, fontSize: 13, padding: "10px 20px", cursor: "pointer" };
+
+  // Login
+  if (!authed) return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',sans-serif" }}>
+      <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: 40, width: 340 }}>
+        <div style={{ color: "#e8435a", fontWeight: 800, fontSize: 22, marginBottom: 4 }}>musify</div>
+        <div style={{ color: "#555", fontSize: 12, marginBottom: 28 }}>Admin Access</div>
+        <label style={labelStyle}>Password</label>
+        <input type="password" value={pw} onChange={e => setPw(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { if (pw === ADMIN_PASSWORD) setAuthed(true); else setPwErr("Wrong password"); } }}
+          placeholder="Enter admin password"
+          style={{ ...inputStyle, marginBottom: 8 }} />
+        {pwErr && <div style={{ color: "#e8435a", fontSize: 12, marginBottom: 8 }}>{pwErr}</div>}
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <button onClick={() => { if (pw === ADMIN_PASSWORD) setAuthed(true); else setPwErr("Wrong password"); }} style={{ ...btnPrimary, flex: 1 }}>Login</button>
+          <button onClick={onBack} style={btnSecondary}>← Back</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const resetForm = () => setForm({ title: "", artist: "", album: "", cover: "", audioUrl: "", playlist: "", youtubeId: "" });
+
+  const handleUpload = async (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!cloudForm.cloudName || !cloudForm.uploadPreset) {
+      setUploadErr("Set Cloudinary Cloud Name and Upload Preset in Settings first.");
+      return;
+    }
+    setUploadErr("");
+    setUploading(u => ({ ...u, [type]: true }));
+    try {
+      const url = await uploadToCloudinary(file, cloudForm.cloudName, cloudForm.uploadPreset, type === "audio" ? "video" : "image");
+      if (type === "cover") setForm(f => ({ ...f, cover: url }));
+      else setForm(f => ({ ...f, audioUrl: url }));
+    } catch (err) {
+      setUploadErr(`Upload failed: ${err.message}`);
+    }
+    setUploading(u => ({ ...u, [type]: false }));
+  };
+
+  const saveSong = () => {
+    if (!form.title || !form.artist) return;
+    if (editingSong) {
+      setSongList(list => list.map(s => s.id === editingSong ? { ...s, ...form } : s));
+      setEditingSong(null);
+    } else {
+      setSongList(list => [...list, { ...form, id: generateId(), source: "local" }]);
+    }
+    resetForm();
+  };
+
+  const deleteSong = (id) => setSongList(list => list.filter(s => s.id !== id));
+
+  const startEdit = (song) => {
+    setEditingSong(song.id);
+    setForm({ title: song.title, artist: song.artist, album: song.album || "", cover: song.cover || "", audioUrl: song.audioUrl || "", playlist: song.playlist || "", youtubeId: song.youtubeId || song.videoId || "" });
+  };
+
+  const savePlaylist = () => {
+    if (!plForm.name) return;
+    if (editingPlaylist) {
+      setPlaylistList(list => list.map(p => p.id === editingPlaylist ? { ...p, name: plForm.name } : p));
+      setEditingPlaylist(null);
+    } else {
+      setPlaylistList(list => [...list, { id: generateId(), name: plForm.name, tracks: [] }]);
+    }
+    setPlForm({ name: "" });
+  };
+
+  const saveAll = () => {
+    setCloudConfig(cloudForm);
+    onSave(songList, [{ id: "liked", name: "Liked Songs", tracks: [] }, ...playlistList]);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const tabBtn = (id, label, icon) => (
+    <button onClick={() => setTab(id)} style={{ ...btnSecondary, background: tab === id ? "rgba(232,67,90,0.15)" : "rgba(255,255,255,0.04)", color: tab === id ? "#e8435a" : "#888", display: "flex", alignItems: "center", gap: 6 }}>
+      {icon} {label}
+    </button>
+  );
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-      onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#1a1a22", borderRadius: 16, padding: 24, maxWidth: 480, width: "100%", maxHeight: "80vh", overflowY: "auto", border: "1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-          <h2 style={{ color: "#f0f0f0", fontSize: 22, fontWeight: 800, margin: 0 }}>{artist}</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#888", fontSize: 20, cursor: "pointer" }}>✕</button>
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", fontFamily: "'Segoe UI',sans-serif", color: "#f0f0f0" }}>
+      {/* Header */}
+      <div style={{ background: "#0d0d12", borderBottom: "1px solid rgba(255,255,255,0.07)", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ color: "#e8435a", fontWeight: 800, fontSize: 20 }}>musify</span>
+          <span style={{ color: "#555", fontSize: 12, background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 6, padding: "2px 8px" }}>Admin Panel</span>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          {saved && <span style={{ color: "#4caf50", fontSize: 13, alignSelf: "center" }}>✓ Saved!</span>}
+          <button onClick={saveAll} style={btnPrimary}>💾 Save Changes</button>
+          <button onClick={onBack} style={btnSecondary}>← Back to App</button>
+        </div>
+      </div>
+
+      <div style={{ padding: "24px", maxWidth: 900, margin: "0 auto" }}>
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
+          {tabBtn("songs", "Songs", "🎵")}
+          {tabBtn("playlists", "Playlists", "📋")}
+          {tabBtn("settings", "Cloudinary", "☁️")}
         </div>
 
-        {info ? (
-          <>
-            {info.stats && (
-              <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-                <div style={{ background: "rgba(232,67,90,0.1)", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
-                  <div style={{ color: "#e8435a", fontWeight: 700, fontSize: 16 }}>{parseInt(info.stats.listeners).toLocaleString()}</div>
-                  <div style={{ color: "#888", fontSize: 11 }}>Listeners</div>
+        {/* ── SONGS TAB ── */}
+        {tab === "songs" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            {/* Add/Edit Form */}
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 20, color: editingSong ? "#e8435a" : "#f0f0f0" }}>
+                {editingSong ? "✏️ Edit Song" : "➕ Add Song"}
+              </div>
+
+              {uploadErr && <div style={{ background: "rgba(232,67,90,0.1)", border: "1px solid rgba(232,67,90,0.3)", borderRadius: 8, padding: "10px 14px", color: "#e8435a", fontSize: 12, marginBottom: 16 }}>{uploadErr}</div>}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={labelStyle}>Song Title *</label>
+                  <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Aromalinte Azhakulla" style={inputStyle} />
                 </div>
-                <div style={{ background: "rgba(232,67,90,0.1)", borderRadius: 8, padding: "8px 16px", textAlign: "center" }}>
-                  <div style={{ color: "#e8435a", fontWeight: 700, fontSize: 16 }}>{parseInt(info.stats.playcount).toLocaleString()}</div>
-                  <div style={{ color: "#888", fontSize: 11 }}>Plays</div>
+                <div>
+                  <label style={labelStyle}>Artist *</label>
+                  <input value={form.artist} onChange={e => setForm(f => ({ ...f, artist: e.target.value }))} placeholder="e.g. K.J. Yesudas" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Album</label>
+                  <input value={form.album} onChange={e => setForm(f => ({ ...f, album: e.target.value }))} placeholder="Album name (optional)" style={inputStyle} />
+                </div>
+
+                {/* Cover Upload */}
+                <div>
+                  <label style={labelStyle}>Cover Image</label>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input value={form.cover} onChange={e => setForm(f => ({ ...f, cover: e.target.value }))} placeholder="Cloudinary URL or upload ↓" style={{ ...inputStyle, flex: 1 }} />
+                    {form.cover && <img src={form.cover} alt="cover" style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover" }} />}
+                  </div>
+                  <input ref={coverInputRef} type="file" accept="image/*" onChange={e => handleUpload(e, "cover")} style={{ display: "none" }} />
+                  <button onClick={() => coverInputRef.current?.click()} style={{ ...btnSecondary, marginTop: 8, fontSize: 12, padding: "7px 14px" }} disabled={uploading.cover}>
+                    {uploading.cover ? "⏳ Uploading..." : "📷 Upload Cover"}
+                  </button>
+                </div>
+
+                {/* Audio Upload */}
+                <div>
+                  <label style={labelStyle}>Audio File (Cloudinary)</label>
+                  <input value={form.audioUrl} onChange={e => setForm(f => ({ ...f, audioUrl: e.target.value }))} placeholder="Cloudinary audio URL or upload ↓" style={inputStyle} />
+                  <input ref={audioInputRef} type="file" accept="audio/*" onChange={e => handleUpload(e, "audio")} style={{ display: "none" }} />
+                  <button onClick={() => audioInputRef.current?.click()} style={{ ...btnSecondary, marginTop: 8, fontSize: 12, padding: "7px 14px" }} disabled={uploading.audio}>
+                    {uploading.audio ? "⏳ Uploading..." : "🎵 Upload Audio"}
+                  </button>
+                  {form.audioUrl && <div style={{ color: "#4caf50", fontSize: 11, marginTop: 4 }}>✓ Audio URL set</div>}
+                </div>
+
+                {/* YouTube fallback */}
+                <div>
+                  <label style={labelStyle}>YouTube Video ID (fallback)</label>
+                  <input value={form.youtubeId} onChange={e => setForm(f => ({ ...f, youtubeId: e.target.value }))} placeholder="e.g. dQw4w9WgXcQ" style={inputStyle} />
+                  <div style={{ color: "#555", fontSize: 11, marginTop: 4 }}>Used if no audio URL. From youtube.com/watch?v=THIS</div>
+                </div>
+
+                {/* Playlist assign */}
+                <div>
+                  <label style={labelStyle}>Add to Playlist</label>
+                  <select value={form.playlist} onChange={e => setForm(f => ({ ...f, playlist: e.target.value }))} style={{ ...inputStyle }}>
+                    <option value="">None</option>
+                    {playlistList.map(pl => <option key={pl.id} value={pl.id}>{pl.name}</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                  <button onClick={saveSong} style={{ ...btnPrimary, flex: 1 }}>{editingSong ? "Update Song" : "Add Song"}</button>
+                  {editingSong && <button onClick={() => { setEditingSong(null); resetForm(); }} style={btnSecondary}>Cancel</button>}
                 </div>
               </div>
-            )}
-            {info.bio?.summary && (
-              <p style={{ color: "#aaa", fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-                {info.bio.summary.replace(/<[^>]+>/g, "").split("Read more")[0].trim()}
-              </p>
-            )}
-            {info.tags?.tag?.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-                {info.tags.tag.slice(0, 5).map((tag) => (
-                  <span key={tag.name} style={{ background: "rgba(232,67,90,0.15)", color: "#e8435a", borderRadius: 20, padding: "3px 10px", fontSize: 11 }}>{tag.name}</span>
+            </div>
+
+            {/* Song List */}
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🎵 Songs ({songList.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 520, overflowY: "auto" }}>
+                {songList.length === 0 && <div style={{ color: "#555", fontSize: 13 }}>No songs yet. Add your first song!</div>}
+                {songList.map(song => (
+                  <div key={song.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: editingSong === song.id ? "1px solid rgba(232,67,90,0.4)" : "1px solid transparent" }}>
+                    <CoverArt cover={song.cover} size={38} title={song.title} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{song.title}</div>
+                      <div style={{ color: "#777", fontSize: 11 }}>{song.artist}</div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+                        {song.audioUrl && <span style={{ background: "rgba(76,175,80,0.15)", color: "#4caf50", fontSize: 10, borderRadius: 4, padding: "1px 5px" }}>☁️ Audio</span>}
+                        {(song.youtubeId || song.videoId) && <span style={{ background: "rgba(255,0,0,0.1)", color: "#ff6b6b", fontSize: 10, borderRadius: 4, padding: "1px 5px" }}>▶ YT</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => startEdit(song)} style={{ background: "none", border: "none", cursor: "pointer", color: "#888", fontSize: 14, padding: 4 }}>✏️</button>
+                    <button onClick={() => deleteSong(song.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#e8435a", fontSize: 14, padding: 4 }}>🗑️</button>
+                  </div>
                 ))}
               </div>
-            )}
-          </>
-        ) : (
-          <div style={{ color: "#555", fontSize: 13, marginBottom: 16 }}>
-            {LASTFM_API_KEY === "YOUR_LASTFM_API_KEY"
-              ? "Add your Last.fm API key to see artist info."
-              : "Loading artist info..."}
+            </div>
           </div>
         )}
 
-        {similar?.length > 0 && (
-          <>
-            <div style={{ color: "#555", fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>SIMILAR ARTISTS</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {similar.map((a) => (
-                <button key={a.name} onClick={() => { onSearch(a.name); onClose(); }}
-                  style={{ background: "rgba(255,255,255,0.04)", border: "none", borderRadius: 8, padding: "8px 12px", color: "#f0f0f0", fontSize: 13, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                  {a.name}
-                </button>
-              ))}
+        {/* ── PLAYLISTS TAB ── */}
+        {tab === "playlists" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 20 }}>{editingPlaylist ? "✏️ Edit Playlist" : "➕ New Playlist"}</div>
+              <label style={labelStyle}>Playlist Name *</label>
+              <input value={plForm.name} onChange={e => setPlForm({ name: e.target.value })} placeholder="e.g. Malayalam Hits" style={{ ...inputStyle, marginBottom: 14 }} />
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={savePlaylist} style={{ ...btnPrimary, flex: 1 }}>{editingPlaylist ? "Update" : "Create Playlist"}</button>
+                {editingPlaylist && <button onClick={() => { setEditingPlaylist(null); setPlForm({ name: "" }); }} style={btnSecondary}>Cancel</button>}
+              </div>
             </div>
-          </>
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 24 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>📋 Playlists ({playlistList.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 10 }}>
+                  <span style={{ fontSize: 18 }}>♥</span>
+                  <div style={{ flex: 1, color: "#f0f0f0", fontSize: 13, fontWeight: 600 }}>Liked Songs</div>
+                  <span style={{ color: "#555", fontSize: 11 }}>Built-in</span>
+                </div>
+                {playlistList.map(pl => (
+                  <div key={pl.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 10 }}>
+                    <span style={{ fontSize: 18 }}>📋</span>
+                    <div style={{ flex: 1, color: "#f0f0f0", fontSize: 13, fontWeight: 600 }}>{pl.name}</div>
+                    <span style={{ color: "#555", fontSize: 11 }}>{songList.filter(s => s.playlist === pl.id).length} songs</span>
+                    <button onClick={() => { setEditingPlaylist(pl.id); setPlForm({ name: pl.name }); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#888", fontSize: 14, padding: 4 }}>✏️</button>
+                    <button onClick={() => setPlaylistList(list => list.filter(p => p.id !== pl.id))} style={{ background: "none", border: "none", cursor: "pointer", color: "#e8435a", fontSize: 14, padding: 4 }}>🗑️</button>
+                  </div>
+                ))}
+                {playlistList.length === 0 && <div style={{ color: "#555", fontSize: 13 }}>No custom playlists yet.</div>}
+              </div>
+            </div>
+          </div>
         )}
 
-        <button onClick={() => { onSearch(artist); onClose(); }}
-          style={{ marginTop: 16, width: "100%", background: "#e8435a", border: "none", borderRadius: 24, padding: "10px 0", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-          Search tracks by {artist}
-        </button>
+        {/* ── SETTINGS TAB ── */}
+        {tab === "settings" && (
+          <div style={{ maxWidth: 480 }}>
+            <div style={{ background: "#0d0d12", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: 28 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>☁️ Cloudinary Settings</div>
+              <div style={{ color: "#555", fontSize: 12, marginBottom: 24 }}>Required for direct file uploads from admin panel.</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <label style={labelStyle}>Cloud Name</label>
+                  <input value={cloudForm.cloudName} onChange={e => setCloudForm(f => ({ ...f, cloudName: e.target.value }))} placeholder="e.g. my-cloud" style={inputStyle} />
+                  <div style={{ color: "#555", fontSize: 11, marginTop: 4 }}>Found in Cloudinary Dashboard → Settings</div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Upload Preset</label>
+                  <input value={cloudForm.uploadPreset} onChange={e => setCloudForm(f => ({ ...f, uploadPreset: e.target.value }))} placeholder="e.g. musify_uploads" style={inputStyle} />
+                  <div style={{ color: "#555", fontSize: 11, marginTop: 4 }}>Settings → Upload → Upload Presets → Create unsigned preset</div>
+                </div>
+                <div style={{ background: "rgba(255,193,7,0.08)", border: "1px solid rgba(255,193,7,0.2)", borderRadius: 10, padding: "14px 16px" }}>
+                  <div style={{ color: "#ffc107", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>📋 How to create an upload preset:</div>
+                  <div style={{ color: "#aaa", fontSize: 11, lineHeight: 1.7 }}>
+                    1. Go to cloudinary.com → Settings<br />
+                    2. Click Upload → Upload Presets<br />
+                    3. Add Upload Preset → set Signing Mode to <b style={{ color: "#ffc107" }}>Unsigned</b><br />
+                    4. Copy the preset name here
+                  </div>
+                </div>
+                <button onClick={() => { setCloudConfig(cloudForm); setSaved(true); setTimeout(() => setSaved(false), 2000); }} style={btnPrimary}>Save Cloudinary Config</button>
+                {saved && <div style={{ color: "#4caf50", fontSize: 13 }}>✓ Saved!</div>}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
-
 export default function Musify() {
+  const [route, setRoute] = useState(window.location.hash === "#/admin" ? "admin" : "app");
   const [view, setView] = useState("home");
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.8);
+  const [loadingTrack, setLoadingTrack] = useState(false);
   const [likedIds, setLikedIds] = useState(new Set());
+  const [likedTracks, setLikedTracksArr] = useState([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
-
-  // API data
   const [featuredTracks, setFeaturedTracks] = useState([]);
-  const [featuredName, setFeaturedName] = useState("Featured");
-  const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [newReleases, setNewReleases] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
+  const [spotifyPlaylists, setSpotifyPlaylists] = useState([]);
   const [loadingHome, setLoadingHome] = useState(true);
-  const [searchSource, setSearchSource] = useState("spotify"); // "spotify" | "itunes"
+  const [playlists, setPlaylists] = useState([{ id: "liked", name: "Liked Songs", tracks: [] }]);
+  const [queue, setQueue] = useState([]);
+  // Admin-managed songs (Cloudinary)
+  const [adminSongs, setAdminSongs] = useState([]);
+  const [cloudConfig, setCloudConfig] = useState({ cloudName: "", uploadPreset: "" });
 
-  // Playlists (user's liked + spotify)
-  const [playlists, setPlaylists] = useState([{ id: "liked-playlist", name: "Liked Songs", tracks: [] }]);
-
-  // Artist modal
-  const [artistModal, setArtistModal] = useState(null); // { name, info, similar }
-
-  const audioRef = useRef(null);
   const searchTimeout = useRef(null);
   const isMobile = useIsMobile();
 
-  // Init audio
+  // Detect /admin route via hash
   useEffect(() => {
-    const audio = new Audio();
-    audioRef.current = audio;
-    audio.volume = volume;
-    audio.addEventListener("timeupdate", () => setProgress(audio.currentTime));
-    audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
-    audio.addEventListener("ended", handleNext);
-    return () => { audio.pause(); };
+    const onHash = () => setRoute(window.location.hash === "#/admin" ? "admin" : "app");
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  useEffect(() => { if (audioRef.current) audioRef.current.volume = volume; }, [volume]);
+  // YouTube player (for non-Cloudinary tracks)
+  const handleEnded = useCallback(() => handleNext(), []);
+  const yt = useYouTubePlayer(handleEnded);
+  // Audio player (for Cloudinary tracks)
+  const audio = useAudioPlayer(handleEnded);
 
   // Load home data
   useEffect(() => {
-    const loadHome = async () => {
+    const load = async () => {
       setLoadingHome(true);
-      try {
-        // Try Spotify first, fallback to iTunes
-        const spotifyTracks = await searchSpotify("top hits");
-        if (spotifyTracks.length > 0) {
-          setFeaturedTracks(spotifyTracks);
-          setFeaturedName("Top Hits · Spotify");
-          setSearchSource("spotify");
-        } else {
-          const itunesTracks = await searchItunes("top hits 2024");
-          setFeaturedTracks(itunesTracks);
-          setFeaturedName("Top Charts · iTunes");
-          setSearchSource("itunes");
-        }
-      } catch {
-        setFeaturedTracks([]);
-        setFeaturedName("Top Charts");
-      }
-
-      // New releases from Spotify
-      const releases = await getSpotifyNewReleases();
+      const [spotifyTracks, releases, featured] = await Promise.all([
+        searchSpotifyTracks("top malayalam hits"),
+        getSpotifyNewReleases(),
+        getSpotifyFeatured(),
+      ]);
+      setFeaturedTracks(spotifyTracks.length > 0 ? spotifyTracks : await searchItunesForYT("top hits 2024"));
       setNewReleases(releases);
-
-      // Featured playlists
-      const spLists = await getSpotifyFeaturedPlaylists();
-      if (spLists.length > 0) {
-        setSpotifyPlaylists(spLists);
-        const converted = spLists.map((p) => ({ id: `spotify-${p.id}`, name: p.name, tracks: [] }));
-        setPlaylists((prev) => [...prev, ...converted]);
-      }
+      setSpotifyPlaylists(featured);
       setLoadingHome(false);
     };
-    loadHome();
+    load();
   }, []);
 
-  // Live search with debounce
+  // Live search
   useEffect(() => {
     if (!search.trim()) { setSearchResults([]); return; }
     clearTimeout(searchTimeout.current);
     setSearching(true);
     searchTimeout.current = setTimeout(async () => {
-      // Try Spotify first, fallback to iTunes
-      let results = await searchSpotify(search);
-      if (!results || results.length === 0) results = await searchItunes(search);
-      setSearchResults(results);
+      // Search admin songs first
+      const localMatches = adminSongs.filter(s =>
+        s.title.toLowerCase().includes(search.toLowerCase()) ||
+        s.artist.toLowerCase().includes(search.toLowerCase())
+      );
+      // Then search online
+      const onlineResults = await searchSpotifyTracks(search);
+      setSearchResults([...localMatches, ...onlineResults]);
       setSearching(false);
     }, 400);
-  }, [search]);
+  }, [search, adminSongs]);
 
-  const handlePlay = useCallback((track) => {
-    const audio = audioRef.current;
-    if (!track.src) return; // no preview
-    if (currentTrack?.id === track.id) {
-      isPlaying ? audio.pause() : audio.play();
-      setIsPlaying(!isPlaying);
-    } else {
-      if (track.src) {
-        audio.src = track.src;
-        audio.play();
-        setIsPlaying(true);
-      } else {
-        // No preview — open Spotify if available
-        if (track.spotifyUrl) window.open(track.spotifyUrl, "_blank");
-        setIsPlaying(false);
+  // Get video ID without API key
+  const getVideoIdFromQuery = async (query) => {
+    try {
+      const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`)}`);
+      const text = await res.text();
+      const match = text.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+      return match ? match[1] : null;
+    } catch { return null; }
+  };
+
+  const handlePlay = useCallback(async (track, trackList = []) => {
+    // Cloudinary audio track
+    if (track.audioUrl) {
+      if (currentTrack?.id === track.id) {
+        if (isPlaying) { audio.pause(); setIsPlaying(false); }
+        else { audio.play(); setIsPlaying(true); }
+        return;
       }
+      // Pause YouTube if playing
+      yt.pause();
       setCurrentTrack(track);
-      setProgress(0);
-      // Fetch recommendations for this track
-      if (track.spotifyId) {
-        getSpotifyRecommendations(track.spotifyId, track.spotifyArtistId)
-          .then(setRecommendations);
-      }
+      setIsPlaying(true);
+      setLoadingTrack(false);
+      if (trackList.length > 0) setQueue(trackList);
+      audio.loadAudio(track.audioUrl);
+      return;
     }
-  }, [currentTrack, isPlaying]);
 
-  const allTracks = [...featuredTracks, ...searchResults];
-  const uniqueTracks = allTracks.filter((t, i, arr) => arr.findIndex(x => x.id === t.id) === i);
+    // YouTube track
+    if (!yt.ready) return;
+    if (currentTrack?.id === track.id) {
+      if (isPlaying) { yt.pause(); setIsPlaying(false); }
+      else { yt.play(); setIsPlaying(true); }
+      return;
+    }
+    audio.pause();
+    setCurrentTrack(track);
+    setIsPlaying(false);
+    setLoadingTrack(true);
+    if (trackList.length > 0) setQueue(trackList);
+
+    let videoId = track.videoId || track.youtubeId;
+    if (!videoId) {
+      const query = track.searchQuery || `${track.title} ${track.artist} official audio`;
+      videoId = await getVideoIdFromQuery(query);
+    }
+    if (videoId) { yt.loadVideo(videoId); setIsPlaying(true); }
+    setLoadingTrack(false);
+  }, [yt, audio, currentTrack, isPlaying]);
+
+  const currentQueue = queue.length > 0 ? queue : [...adminSongs, ...featuredTracks];
 
   const handleNext = useCallback(() => {
     if (!currentTrack) return;
-    const list = uniqueTracks.length > 0 ? uniqueTracks : featuredTracks;
-    const idx = list.findIndex((t) => t.id === currentTrack.id);
-    if (idx !== -1) handlePlay(list[(idx + 1) % list.length]);
-  }, [currentTrack, uniqueTracks, featuredTracks]);
+    const idx = currentQueue.findIndex(t => t.id === currentTrack.id);
+    const next = currentQueue[(idx + 1) % currentQueue.length];
+    if (next) handlePlay(next, currentQueue);
+  }, [currentTrack, currentQueue, handlePlay]);
 
   const handlePrev = useCallback(() => {
     if (!currentTrack) return;
-    if (audioRef.current.currentTime > 3) { audioRef.current.currentTime = 0; return; }
-    const list = uniqueTracks.length > 0 ? uniqueTracks : featuredTracks;
-    const idx = list.findIndex((t) => t.id === currentTrack.id);
-    if (idx !== -1) handlePlay(list[(idx - 1 + list.length) % list.length]);
-  }, [currentTrack, uniqueTracks, featuredTracks]);
+    const prog = currentTrack.audioUrl ? audio.progress : yt.progress;
+    if (prog > 3) { currentTrack.audioUrl ? audio.seek(0) : yt.seek(0); return; }
+    const idx = currentQueue.findIndex(t => t.id === currentTrack.id);
+    const prev = currentQueue[(idx - 1 + currentQueue.length) % currentQueue.length];
+    if (prev) handlePlay(prev, currentQueue);
+  }, [currentTrack, currentQueue, yt, audio, handlePlay]);
 
-  const handleSeek = (ratio) => { if (audioRef.current && duration) audioRef.current.currentTime = ratio * duration; };
-
-  const handleLike = (id) => {
-    setLikedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const handleLike = (track) => {
+    setLikedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(track.id)) { next.delete(track.id); setLikedTracksArr(arr => arr.filter(t => t.id !== track.id)); }
+      else { next.add(track.id); setLikedTracksArr(arr => [...arr, track]); }
+      return next;
+    });
   };
 
-  const handleArtistClick = async (artistName) => {
-    setArtistModal({ name: artistName, info: null, similar: [] });
-    // Last.fm for bio (if key set), iTunes for similar artist tracks
-    const [info, similar] = await Promise.all([
-      getArtistInfo(artistName),
-      getSimilarArtists(artistName),
-    ]);
-    setArtistModal({ name: artistName, info, similar });
+  // Admin save callback
+  const handleAdminSave = (songs, pls) => {
+    setAdminSongs(songs);
+    setPlaylists(pls);
   };
 
-  const handleSearchFromModal = (artistName) => {
-    setSearch(artistName);
-    setView("search");
-  };
-
-  const likedTracks = featuredTracks.filter((t) => likedIds.has(t.id));
   const mobilePadBottom = currentTrack ? 160 : 70;
 
-  const sharedProps = {
-    currentTrack, isPlaying, onPlay: handlePlay, likedIds, onLike: handleLike,
-    isMobile, onArtistClick: handleArtistClick,
-  };
+  // Determine progress/duration/volume based on active player
+  const activeProgress = currentTrack?.audioUrl ? audio.progress : yt.progress;
+  const activeDuration = currentTrack?.audioUrl ? audio.duration : yt.duration;
+  const activeVolume = currentTrack?.audioUrl ? audio.volume : yt.volume;
+  const activeSeek = currentTrack?.audioUrl ? audio.seek : yt.seek;
+  const activeSetVol = currentTrack?.audioUrl ? audio.setVol : yt.setVol;
 
+  const trackRowProps = (track, index, list) => ({
+    track, index, isPlaying, isCurrent: currentTrack?.id === track.id,
+    onPlay: () => handlePlay(track, list),
+    liked: likedIds.has(track.id), onLike: () => handleLike(track),
+    isMobile, loading: loadingTrack && currentTrack?.id === track.id,
+  });
+
+  // Playlist tracks
+  const getPlaylistTracks = (plId) => adminSongs.filter(s => s.playlist === plId);
+
+  // ── ADMIN ROUTE ──
+  if (route === "admin") return (
+    <AdminPanel
+      songs={adminSongs}
+      playlists={playlists}
+      onSave={handleAdminSave}
+      onBack={() => { window.location.hash = ""; setRoute("app"); }}
+      cloudConfig={cloudConfig}
+      setCloudConfig={setCloudConfig}
+    />
+  );
+
+  // ── MAIN APP ──
   return (
     <div style={{ display: "flex", height: "100vh", background: "#0a0a0f", fontFamily: "'Segoe UI',sans-serif", color: "#f0f0f0", overflow: "hidden" }}>
+      {/* Hidden YouTube player */}
+      <div ref={yt.containerRef} style={{ position: "fixed", top: -2, left: -2, width: 1, height: 1, opacity: 0, pointerEvents: "none", zIndex: -1 }} />
 
-      {!isMobile && (
-        <Sidebar view={view} setView={setView} playlists={playlists} selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} />
-      )}
+      {!isMobile && <Sidebar view={view} setView={setView} playlists={playlists} selectedPlaylist={selectedPlaylist} setSelectedPlaylist={setSelectedPlaylist} />}
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: isMobile ? mobilePadBottom : 100 }}>
         {isMobile && (
           <div style={{ padding: "20px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ color: "#e8435a", fontWeight: 800, fontSize: 24 }}>musify</div>
+            <div style={{ color: "#555", fontSize: 11 }}></div>
           </div>
         )}
 
@@ -594,66 +843,64 @@ export default function Musify() {
         {view === "home" && (
           <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4 }}>Good evening 🎵</h2>
-            <p style={{ color: "#555", fontSize: 13, marginBottom: 24 }}>Powered by Spotify + iTunes • 30s previews</p>
+            <p style={{ color: "#555", fontSize: 12, marginBottom: 24 }}>Full songs via YouTube & Cloudinary • Search any song</p>
 
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: "#f0f0f0" }}>🎵 {featuredName}</h3>
-            {loadingHome ? (
-              <div style={{ color: "#555", fontSize: 13 }}>Loading tracks...</div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(160px,1fr))", gap: isMobile ? 12 : 16 }}>
-                {featuredTracks.slice(0, 12).map((t) => (
-                  <div key={t.id} onClick={() => handlePlay(t)}
-                    style={{ background: "#1a1a22", borderRadius: 12, padding: isMobile ? 12 : 16, cursor: "pointer", border: `1px solid ${currentTrack?.id === t.id ? "rgba(232,67,90,0.4)" : "rgba(255,255,255,0.06)"}` }}>
-                    <CoverArt cover={t.cover} size={isMobile ? 80 : 120} title={t.title} />
-                    <div style={{ color: currentTrack?.id === t.id ? "#e8435a" : "#f0f0f0", fontWeight: 700, fontSize: isMobile ? 14 : 13, marginTop: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                    <div onClick={(e) => { e.stopPropagation(); handleArtistClick(t.artist); }} style={{ color: "#888", fontSize: isMobile ? 12 : 11, marginTop: 4, cursor: "pointer" }}>{t.artist}</div>
-                    {!t.src && <div style={{ color: "#e8435a", fontSize: 10, marginTop: 4 }}>No preview</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* New Releases */}
-            {newReleases.length > 0 && (
+            {/* Admin songs section */}
+            {adminSongs.length > 0 && (
               <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "32px 0 16px", color: "#f0f0f0" }}>🆕 New Releases</h3>
-                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
-                  {newReleases.map((t) => (
-                    <div key={t.id} onClick={() => t.spotifyUrl && window.open(t.spotifyUrl, "_blank")}
-                      style={{ background: "#1a1a22", borderRadius: 12, padding: 12, minWidth: 140, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
-                      <CoverArt cover={t.cover} size={116} title={t.title} />
-                      <div style={{ color: "#f0f0f0", fontWeight: 600, fontSize: 12, marginTop: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                      <div style={{ color: "#888", fontSize: 11, marginTop: 2 }}>{t.artist}</div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>☁️ My Collection</h3>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(150px,1fr))", gap: isMobile ? 10 : 14, marginBottom: 28 }}>
+                  {adminSongs.map(t => (
+                    <div key={t.id} onClick={() => handlePlay(t, adminSongs)}
+                      style={{ background: "#1a1a22", borderRadius: 12, padding: isMobile ? 10 : 14, cursor: "pointer", border: `1px solid ${currentTrack?.id === t.id ? "rgba(232,67,90,0.5)" : "rgba(255,255,255,0.06)"}` }}>
+                      <CoverArt cover={t.cover} size={isMobile ? "100%" : 120} title={t.title} />
+                      <div style={{ color: currentTrack?.id === t.id ? "#e8435a" : "#f0f0f0", fontWeight: 700, fontSize: 13, marginTop: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                      <div style={{ color: "#888", fontSize: 11, marginTop: 3 }}>{t.artist}</div>
+                      <div style={{ color: "#4caf50", fontSize: 10, marginTop: 2 }}>☁️ Cloudinary</div>
                     </div>
                   ))}
                 </div>
               </>
             )}
 
-            {/* Recommendations */}
-            {recommendations.length > 0 && (
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>🎵 Top Malayalam Hits</h3>
+            {loadingHome ? <div style={{ color: "#555" }}>Loading...</div> : (
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(150px,1fr))", gap: isMobile ? 10 : 14 }}>
+                {featuredTracks.slice(0, 12).map(t => (
+                  <div key={t.id} onClick={() => handlePlay(t, featuredTracks)}
+                    style={{ background: "#1a1a22", borderRadius: 12, padding: isMobile ? 10 : 14, cursor: "pointer", border: `1px solid ${currentTrack?.id === t.id ? "rgba(232,67,90,0.5)" : "rgba(255,255,255,0.06)"}` }}>
+                    <CoverArt cover={t.cover} size={isMobile ? "100%" : 120} title={t.title} />
+                    <div style={{ color: currentTrack?.id === t.id ? "#e8435a" : "#f0f0f0", fontWeight: 700, fontSize: 13, marginTop: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                    <div style={{ color: "#888", fontSize: 11, marginTop: 3 }}>{t.artist}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {newReleases.length > 0 && (
               <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "32px 0 16px", color: "#f0f0f0" }}>✨ Recommended for You</h3>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  {recommendations.map((t, i) => (
-                    <TrackRow key={t.id} track={t} index={i} currentTrack={currentTrack} isPlaying={isPlaying}
-                      isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)}
-                      likedIds={likedIds} liked={likedIds.has(t.id)} onLike={() => handleLike(t.id)}
-                      isMobile={isMobile} onArtistClick={handleArtistClick} />
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: "28px 0 14px" }}>🆕 New Releases</h3>
+                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
+                  {newReleases.map(t => (
+                    <div key={t.id} onClick={() => handlePlay(t, newReleases)}
+                      style={{ background: "#1a1a22", borderRadius: 12, padding: 10, minWidth: 130, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
+                      <CoverArt cover={t.cover} size={110} title={t.title} />
+                      <div style={{ color: "#f0f0f0", fontWeight: 600, fontSize: 12, marginTop: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                      <div style={{ color: "#888", fontSize: 11 }}>{t.artist}</div>
+                    </div>
                   ))}
                 </div>
               </>
             )}
 
-            {/* Featured Playlists */}
             {spotifyPlaylists.length > 0 && (
               <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "32px 0 16px", color: "#f0f0f0" }}>🎧 Featured Playlists</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: "28px 0 14px" }}>🎧 Featured Playlists</h3>
                 <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
-                  {spotifyPlaylists.map((p) => (
-                    <div key={p.id} onClick={() => window.open(p.external_urls?.spotify, "_blank")}
-                      style={{ background: "#1a1a22", borderRadius: 12, padding: 12, minWidth: 140, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
-                      {p.images?.[0]?.url && <img src={p.images[0].url} alt={p.name} style={{ width: 116, height: 116, borderRadius: 8, objectFit: "cover" }} />}
+                  {spotifyPlaylists.map(p => (
+                    <div key={p.id} onClick={() => { setSearch(p.name); setView("search"); }}
+                      style={{ background: "#1a1a22", borderRadius: 12, padding: 10, minWidth: 130, border: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, cursor: "pointer" }}>
+                      {p.images?.[0]?.url && <img src={p.images[0].url} alt={p.name} style={{ width: 110, height: 110, borderRadius: 8, objectFit: "cover" }} />}
                       <div style={{ color: "#f0f0f0", fontWeight: 600, fontSize: 12, marginTop: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                     </div>
                   ))}
@@ -667,11 +914,15 @@ export default function Musify() {
         {view === "library" && (
           <div style={{ padding: isMobile ? "12px 0" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, padding: isMobile ? "0 16px" : 0 }}>Your Library</h2>
-            {loadingHome
-              ? <div style={{ color: "#555", padding: 16 }}>Loading...</div>
-              : featuredTracks.map((t, i) => (
-                <TrackRow key={t.id} track={t} index={i} {...sharedProps} isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)} liked={likedIds.has(t.id)} onLike={() => handleLike(t.id)} />
-              ))}
+            {adminSongs.length > 0 && (
+              <>
+                <div style={{ color: "#888", fontSize: 12, fontWeight: 700, padding: isMobile ? "0 16px" : "0 0 8px", marginBottom: 8, letterSpacing: 1 }}>☁️ MY COLLECTION</div>
+                {adminSongs.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, adminSongs)} />)}
+                <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", margin: "16px 0" }} />
+              </>
+            )}
+            {loadingHome ? <div style={{ color: "#555", padding: 16 }}>Loading...</div>
+              : featuredTracks.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, featuredTracks)} />)}
           </div>
         )}
 
@@ -681,9 +932,7 @@ export default function Musify() {
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, padding: isMobile ? "0 16px" : 0 }}>♥ Liked Songs</h2>
             {likedTracks.length === 0
               ? <div style={{ color: "#555", padding: isMobile ? "0 16px" : 0 }}>No liked songs yet. Tap ♡ on any song!</div>
-              : likedTracks.map((t, i) => (
-                <TrackRow key={t.id} track={t} index={i} {...sharedProps} isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)} liked={true} onLike={() => handleLike(t.id)} />
-              ))}
+              : likedTracks.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, likedTracks)} />)}
           </div>
         )}
 
@@ -691,54 +940,54 @@ export default function Musify() {
         {view === "search" && (
           <div style={{ padding: isMobile ? "12px 16px" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 16 }}>Search</h2>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search songs, artists... (Spotify + iTunes)"
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search any song, artist..."
               style={{ width: "100%", maxWidth: isMobile ? "100%" : 480, background: "#1a1a22", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "12px 20px", color: "#f0f0f0", fontSize: 14, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
             <div style={{ marginTop: 20 }}>
-              {searching && <div style={{ color: "#555", fontSize: 13 }}>Searching Spotify + iTunes...</div>}
+              {searching && <div style={{ color: "#555", fontSize: 13 }}>Searching...</div>}
               {!searching && search && searchResults.length === 0 && <div style={{ color: "#555" }}>No results found.</div>}
-              {searchResults.map((t, i) => (
-                <TrackRow key={t.id} track={t} index={i} {...sharedProps} isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)} liked={likedIds.has(t.id)} onLike={() => handleLike(t.id)} />
-              ))}
+              {searchResults.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, searchResults)} />)}
             </div>
           </div>
         )}
 
         {/* PLAYLIST */}
-        {view === "playlist" && (
+        {view === "playlist" && selectedPlaylist === "liked" && (
+          <div style={{ padding: isMobile ? "12px 0" : 32 }}>
+            <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, padding: isMobile ? "0 16px" : 0 }}>♥ Liked Songs</h2>
+            {likedTracks.length === 0
+              ? <div style={{ color: "#555", padding: isMobile ? "0 16px" : 0 }}>No liked songs yet!</div>
+              : likedTracks.map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, likedTracks)} />)}
+          </div>
+        )}
+
+        {view === "playlist" && selectedPlaylist && selectedPlaylist !== "liked" && (
           <div style={{ padding: isMobile ? "12px 0" : 32 }}>
             <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 20, padding: isMobile ? "0 16px" : 0 }}>
-              🎵 {playlists.find((p) => p.id === selectedPlaylist)?.name || "Playlist"}
+              📋 {playlists.find(p => p.id === selectedPlaylist)?.name || "Playlist"}
             </h2>
-            {selectedPlaylist === "liked-playlist"
-              ? likedTracks.length === 0
-                ? <div style={{ color: "#555", padding: isMobile ? "0 16px" : 0 }}>No liked songs yet!</div>
-                : likedTracks.map((t, i) => <TrackRow key={t.id} track={t} index={i} {...sharedProps} isCurrent={currentTrack?.id === t.id} onPlay={() => handlePlay(t)} liked={true} onLike={() => handleLike(t.id)} />)
-              : <div style={{ color: "#555", padding: isMobile ? "0 16px" : 0 }}>Connect Spotify to load this playlist.</div>}
+            {getPlaylistTracks(selectedPlaylist).length === 0
+              ? <div style={{ color: "#555", padding: isMobile ? "0 16px" : 0 }}>No songs in this playlist yet. Add them from the admin panel.</div>
+              : getPlaylistTracks(selectedPlaylist).map((t, i) => <TrackRow key={t.id} {...trackRowProps(t, i, getPlaylistTracks(selectedPlaylist))} />)}
           </div>
         )}
       </div>
 
       <PlayerBar
-        track={currentTrack} isPlaying={isPlaying}
-        onToggle={() => { if (!currentTrack) return; isPlaying ? audioRef.current.pause() : audioRef.current.play(); setIsPlaying(!isPlaying); }}
-        progress={progress} duration={duration} onSeek={handleSeek} onNext={handleNext} onPrev={handlePrev}
-        volume={volume} onVolume={setVolume}
+        track={currentTrack} isPlaying={isPlaying} loading={loadingTrack}
+        onToggle={() => {
+          if (!currentTrack) return;
+          if (currentTrack.audioUrl) { if (isPlaying) { audio.pause(); setIsPlaying(false); } else { audio.play(); setIsPlaying(true); } }
+          else { if (isPlaying) { yt.pause(); setIsPlaying(false); } else { yt.play(); setIsPlaying(true); } }
+        }}
+        progress={activeProgress} duration={activeDuration}
+        onSeek={activeSeek} onNext={handleNext} onPrev={handlePrev}
+        volume={activeVolume} onVolume={activeSetVol}
         liked={currentTrack ? likedIds.has(currentTrack.id) : false}
-        onLike={() => currentTrack && handleLike(currentTrack.id)}
+        onLike={() => currentTrack && handleLike(currentTrack)}
         isMobile={isMobile}
       />
 
       {isMobile && <BottomNav view={view} setView={setView} />}
-
-      {artistModal && (
-        <ArtistModal
-          artist={artistModal.name}
-          info={artistModal.info}
-          similar={artistModal.similar}
-          onClose={() => setArtistModal(null)}
-          onSearch={handleSearchFromModal}
-        />
-      )}
     </div>
   );
 }

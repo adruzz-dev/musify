@@ -62,20 +62,20 @@ const SONGS = [
     cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779561178/images_2_fuqfh9.jpg",
   },
   {
-    id: "2",
-    title: "Song Title 2",
-    artist: "Artist Name",
+    id: "4",
+    title: "Malare",
+    artist: "Rajesh Murugesan, Vijay Yesudas",
     album: "Album Name",
-    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779447548/KALYANI_vcsmqg.mp3",
-    cover: "",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557149/Premam_Malare_Video_Song_Rajesh_Murugesan_Vijay_Yesudas_Nivin_Pauly_Sai_Pallavi_-_Anwar_Rasheed_Entertainment_Official_youtube_iplxn3.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_4_opydxc.jpg",
   },
     {
-    id: "1",
-    title: "Vaishakha Sandhye",
-    artist: "Artist Name",
+    id: "5",
+    title: "Uyiril Thodum",
+    artist: "Sushin Shyam, Sooraj Santhosh, Anne Amie, Anwar Ali",
     album: "Album Name",
-    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779531012/Vaisakha_Sandhye_HD_Video_Song_Mohanlal_Shobana_-_Nadodikkattu_-_Saina_Music_youtube_u2fvmk.mp3",
-    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779530849/images_p3p8bd.jpg",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557117/%E0%B4%89%E0%B4%AF%E0%B4%BF%E0%B4%B0%E0%B4%BF%E0%B5%BD_%E0%B4%A4%E0%B5%8A%E0%B4%9F%E0%B5%81%E0%B4%82_Uyiril_Thodum_-_Kumbalangi_Nights_Official_Video_Song___Sooraj_Santhosh___Anne_Amie_ZKhOs_Pc_7s_tyqluu.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg",
   },
   {
     id: "2",
@@ -494,7 +494,7 @@ const PLAYLISTS = [
     id: "pl-1",
     name: "Malayalam Melodies",
     cover: "",        // optional cover image URL
-    songIds: ["1", "2"],
+    songIds: ["1", "2", "3","4","5","6","7","8","9","10",],
   },
   // Add more playlists below this line...
 ];

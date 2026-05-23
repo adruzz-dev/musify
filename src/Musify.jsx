@@ -42,8 +42,8 @@ const SONGS = [
     title: "Song Title 1",
     artist: "Artist Name",
     album: "Album Name",
-    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/YOUR_AUDIO_FILE_1.mp3",
-    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/YOUR_COVER_1.jpg",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779531012/Vaisakha_Sandhye_HD_Video_Song_Mohanlal_Shobana_-_Nadodikkattu_-_Saina_Music_youtube_u2fvmk.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779530849/images_p3p8bd.jpg",
   },
   {
     id: "2",

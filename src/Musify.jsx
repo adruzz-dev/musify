@@ -50,8 +50,10 @@ const SONGS = [
     title: "Song Title 2",
     artist: "Artist Name",
     album: "Album Name",
+    // FIX: Removed broken cover URL — initials fallback will show instead.
+    // Replace with a valid Cloudinary image URL when you have one.
     audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779447548/KALYANI_vcsmqg.mp3",
-    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/YOUR_COVER_2.jpg",
+    cover: "",
   },
   // Add more songs below this line...
 ];
@@ -117,13 +119,16 @@ function generateId() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUDIO PLAYER HOOK
+// FIX: Added userGestureUnlocked ref to properly resume AudioContext on mobile.
+//      Fixed isPlaying state to be set AFTER play() promise resolves.
 // ─────────────────────────────────────────────────────────────────────────────
-function useAudioPlayer(onEnded, playbackSettings) {
+function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
   const gainRef = useRef(null);
   const eqBandsRef = useRef([]);
   const sleepTimerRef = useRef(null);
+  const unlockedRef = useRef(false);
 
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -134,9 +139,13 @@ function useAudioPlayer(onEnded, playbackSettings) {
 
   useEffect(() => {
     const a = new Audio();
+    a.crossOrigin = "anonymous"; // FIX: allow CORS audio for Web Audio API
     a.volume = volume;
     audioRef.current = a;
+
     a.addEventListener("ended", () => onEnded?.());
+    a.addEventListener("play", () => onPlayStateChange?.(true));
+    a.addEventListener("pause", () => onPlayStateChange?.(false));
     a.addEventListener("timeupdate", () => {
       setProgress(a.currentTime);
       const s = settingsRef.current;
@@ -144,19 +153,34 @@ function useAudioPlayer(onEnded, playbackSettings) {
         const remaining = a.duration - a.currentTime;
         if (remaining <= s.crossfade && remaining > 0) {
           const fade = remaining / s.crossfade;
-          if (gainRef.current) gainRef.current.gain.value = Math.max(0, fade) * volume;
+          if (gainRef.current) gainRef.current.gain.value = Math.max(0, fade) * a.volume;
         }
       }
     });
     a.addEventListener("loadedmetadata", () => setDuration(a.duration));
+
+    // FIX: Unlock audio on first user gesture (critical for mobile browsers)
+    const unlock = () => {
+      if (unlockedRef.current) return;
+      unlockedRef.current = true;
+      if (audioCtxRef.current?.state === "suspended") {
+        audioCtxRef.current.resume();
+      }
+    };
+    document.addEventListener("touchstart", unlock, { once: true });
+    document.addEventListener("click", unlock, { once: true });
+
     return () => {
       a.pause();
       clearTimeout(sleepTimerRef.current);
+      document.removeEventListener("touchstart", unlock);
+      document.removeEventListener("click", unlock);
     };
   }, []);
 
   const setupWebAudio = useCallback(() => {
-    if (!audioCtxRef.current) {
+    if (audioCtxRef.current) return;
+    try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       audioCtxRef.current = ctx;
       const src = ctx.createMediaElementSource(audioRef.current);
@@ -176,6 +200,10 @@ function useAudioPlayer(onEnded, playbackSettings) {
       bands.forEach((b) => { prev.connect(b); prev = b; });
       prev.connect(gain);
       gain.connect(ctx.destination);
+      if (unlockedRef.current && ctx.state === "suspended") ctx.resume();
+    } catch (e) {
+      // Web Audio API not available — audio still works via <audio> element
+      console.warn("WebAudio setup failed:", e);
     }
   }, []);
 
@@ -185,16 +213,20 @@ function useAudioPlayer(onEnded, playbackSettings) {
     });
   }, []);
 
+  // FIX: load() now returns a Promise so caller can await it and set isPlaying
   const load = useCallback((url) => {
-    if (!audioRef.current) return;
+    const a = audioRef.current;
+    if (!a) return Promise.resolve();
     if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
-    if (gainRef.current) gainRef.current.gain.value = volume;
-    audioRef.current.src = url;
-    audioRef.current.load();
-    audioRef.current.play().then(() => {
+    if (gainRef.current) gainRef.current.gain.value = a.volume;
+    a.src = url;
+    a.load();
+    return a.play().then(() => {
       if (!audioCtxRef.current) setupWebAudio();
-    }).catch(() => {});
-  }, [volume, setupWebAudio]);
+    }).catch((err) => {
+      console.warn("Audio play failed:", err);
+    });
+  }, [setupWebAudio]);
 
   const setSleepTimer = useCallback((minutes) => {
     clearTimeout(sleepTimerRef.current);
@@ -209,7 +241,12 @@ function useAudioPlayer(onEnded, playbackSettings) {
     progress, duration,
     volume: Math.round(volume * 100),
     load,
-    play: () => { audioRef.current?.play(); if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume(); },
+    play: () => {
+      const a = audioRef.current;
+      if (!a) return;
+      if (audioCtxRef.current?.state === "suspended") audioCtxRef.current.resume();
+      a.play().catch(() => {});
+    },
     pause: () => audioRef.current?.pause(),
     seek: (r) => { if (audioRef.current) audioRef.current.currentTime = r * (audioRef.current.duration || 0); },
     setVol: (v) => {
@@ -497,6 +534,60 @@ function AddToPlaylistModal({ track, userPlaylists, onAdd, onCreateAndAdd, onClo
       </div>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SORT BAR — NEW COMPONENT
+// Allows sorting songs in a playlist by different criteria
+// ─────────────────────────────────────────────────────────────────────────────
+const SORT_OPTIONS = [
+  { key: "original", label: "Original" },
+  { key: "title_az", label: "A → Z" },
+  { key: "title_za", label: "Z → A" },
+  { key: "artist", label: "Artist" },
+];
+
+function SortBar({ sortKey, onChange }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      <span style={{ color: "#555", fontSize: 11, fontWeight: 700, marginRight: 4 }}>SORT:</span>
+      {SORT_OPTIONS.map((opt) => (
+        <button
+          key={opt.key}
+          onClick={() => onChange(opt.key)}
+          style={{
+            background: sortKey === opt.key ? "#e8435a" : "rgba(255,255,255,0.07)",
+            border: "none",
+            borderRadius: 20,
+            color: sortKey === opt.key ? "#fff" : "#888",
+            fontFamily: "inherit",
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "5px 12px",
+            cursor: "pointer",
+            transition: "all 0.15s",
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function applySortToSongs(songs, sortKey) {
+  const arr = [...songs];
+  switch (sortKey) {
+    case "title_az":
+      return arr.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    case "title_za":
+      return arr.sort((a, b) => (b.title || "").localeCompare(a.title || ""));
+    case "artist":
+      return arr.sort((a, b) => (a.artist || "").localeCompare(b.artist || ""));
+    case "original":
+    default:
+      return arr;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -942,6 +1033,9 @@ export default function Musify() {
   const [userPlaylists, setUserPlaylists] = useState([]);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState(null);
 
+  // NEW: per-playlist sort state  { [playlistId]: sortKey }
+  const [playlistSortKeys, setPlaylistSortKeys] = useState({});
+
   const [playbackSettings, setPlaybackSettings] = useState(() => {
     try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("musify_settings") || "{}") }; }
     catch { return DEFAULT_SETTINGS; }
@@ -950,6 +1044,11 @@ export default function Musify() {
   const isMobile = useIsMobile();
   const playStartRef = useRef(null);
   const artistCountRef = useRef({});
+
+  // FIX: isPlaying is now driven by the audio element's play/pause events
+  const handlePlayStateChange = useCallback((playing) => {
+    setIsPlaying(playing);
+  }, []);
 
   const handleEnded = useCallback(() => {
     const s = playbackSettings;
@@ -967,7 +1066,7 @@ export default function Musify() {
     if (nextTrack) playTrack(nextTrack, q);
   }, [currentTrack, queue, playbackSettings]);
 
-  const audio = useAudioPlayer(handleEnded, playbackSettings);
+  const audio = useAudioPlayer(handleEnded, handlePlayStateChange, playbackSettings);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -982,7 +1081,6 @@ export default function Musify() {
           setLikedTracksArr(liked);
         }
       } else if (u && u.providerData?.some(p => p.providerId === "google.com")) {
-        // Google users are always verified
         setUser(u);
         const data = await getUserDoc(u.uid);
         if (data) {
@@ -1041,15 +1139,18 @@ export default function Musify() {
       }
     }
     playStartRef.current = Date.now();
+
+    // FIX: Toggle play/pause if same track clicked
     if (currentTrack?.id === track.id) {
-      if (isPlaying) { audio.pause(); setIsPlaying(false); }
-      else { audio.play(); setIsPlaying(true); }
+      if (isPlaying) { audio.pause(); }
+      else { audio.play(); }
       return;
     }
+
     if (!track.audioUrl) return;
     setCurrentTrack(track);
-    setIsPlaying(true);
     if (trackList.length > 0) setQueue(trackList);
+    // FIX: load() triggers play internally; isPlaying set via audio events
     audio.load(track.audioUrl);
   }, [currentTrack, isPlaying, audio, user, userDoc]);
 
@@ -1275,16 +1376,21 @@ export default function Musify() {
           </div>
         )}
 
-        {/* USER PLAYLIST */}
+        {/* USER PLAYLIST — with sort feature */}
         {view === "userplaylist" && selectedPlaylist && (() => {
           const pl = userPlaylists.find((p) => p.id === selectedPlaylist);
           if (!pl) return null;
-          const songs = pl.songs || [];
+          const rawSongs = pl.songs || [];
+          const sortKey = playlistSortKeys[pl.id] || "original";
+          const songs = applySortToSongs(rawSongs, sortKey);
+
           return (
             <div style={{ padding: isMobile ? "12px 0" : "28px 32px" }}>
               <div style={{ padding: isMobile ? "0 16px 16px" : "0 0 20px" }}>
                 <h2 style={{ fontSize: isMobile ? 22 : 26, fontWeight: 800, marginBottom: 4, marginTop: 0 }}>🎵 {pl.name}</h2>
-                <div style={{ color: "#555", fontSize: 13 }}>{songs.length} songs</div>
+                <div style={{ color: "#555", fontSize: 13 }}>{rawSongs.length} songs</div>
+
+                {/* Action buttons */}
                 <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
                   {songs.length > 0 && (
                     <button onClick={() => playTrack(songs[0], songs)}
@@ -1297,7 +1403,20 @@ export default function Musify() {
                     🗑 Delete
                   </button>
                 </div>
+
+                {/* SORT BAR — shown only when there are songs */}
+                {rawSongs.length > 1 && (
+                  <div style={{ marginTop: 16 }}>
+                    <SortBar
+                      sortKey={sortKey}
+                      onChange={(key) =>
+                        setPlaylistSortKeys((prev) => ({ ...prev, [pl.id]: key }))
+                      }
+                    />
+                  </div>
+                )}
               </div>
+
               {songs.length === 0
                 ? <div style={{ color: "#444", padding: isMobile ? "0 16px" : 0 }}>No songs yet. Tap ⋮ on any song to add here.</div>
                 : songs.map((t, i) => <TrackRow key={t.id} {...rowProps(t, i, songs)} />)
@@ -1323,8 +1442,8 @@ export default function Musify() {
         track={currentTrack} isPlaying={isPlaying}
         onToggle={() => {
           if (!currentTrack) return;
-          if (isPlaying) { audio.pause(); setIsPlaying(false); }
-          else { audio.play(); setIsPlaying(true); }
+          if (isPlaying) { audio.pause(); }
+          else { audio.play(); }
         }}
         progress={audio.progress} duration={audio.duration}
         onSeek={audio.seek} onNext={handleNext} onPrev={handlePrev}

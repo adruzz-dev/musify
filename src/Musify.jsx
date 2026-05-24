@@ -35,6 +35,14 @@ const SONGS = [
   { id: "5", title: "Uyiril Thodum", artist: "Sushin Shyam, Sooraj Santhosh, Anne Amie", album: "Kumbalangi Nights", genre: "Melody", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557117/%E0%B4%89%E0%B4%AF%E0%B4%BF%E0%B4%B0%E0%B4%BF%E0%B5%BD_%E0%B4%A4%E0%B5%8A%E0%B4%9F%E0%B5%81%E0%B4%82_Uyiril_Thodum_-_Kumbalangi_Nights_Official_Video_Song___Sooraj_Santhosh___Anne_Amie_ZKhOs_Pc_7s_tyqluu.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg" },
   { id: "6", title: "Darshana", artist: "Vineeth Sreenivasan", album: "Hridayam", genre: "Melody", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557122/Darshana_-_Official_Video_Song___Hridayam___Pranav___Darshana___Vineeth___Hesham___Merryland_epAFDEJImrU_hsyy47.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/ab67616d00001e029b8c8ab6e0a59493a5fa06c6_pi7ztc.jpg" },
   { id: "7", title: "Pavizha Mazha", artist: "K. S. Harisankar", album: "Athiran", genre: "Melody", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg" },
+  {
+    id: "32873937c",
+    title: "Oru Rathri Koodi",
+    artist: "K J Yesudas, K S chithra",
+    album: "Summer in Bathlehem",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779590120/Oru_Raathri_Koodi_HD1080p_HD_Remastered_Suresh_Gopi_Manju_Warrier_Summer_in_Bethlehem_-_Saina_Music_youtube_ej6nm5.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779590050/maxresdefault_1_pl54hc.jpg",
+  },
 ].filter((s) => s.id && s.title && s.audioUrl);
 
 const PLAYLISTS = [
@@ -82,7 +90,7 @@ function useSongDuration(audioUrl) {
   return dur;
 }
 
-// ── EQ BANDS ─────────────────────────────────────────────────────────────────
+// ââ EQ BANDS âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function createEQNodes(ctx) {
   const bass = ctx.createBiquadFilter();
   bass.type = "lowshelf"; bass.frequency.value = 200;
@@ -193,7 +201,7 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
   };
 }
 
-// ── ANIMATED EQUALIZER BARS ──────────────────────────────────────────────────
+// ââ ANIMATED EQUALIZER BARS ââââââââââââââââââââââââââââââââââââââââââââââââââ
 function EQBars({ getAnalyserData, isPlaying, color="#e8435a", barCount=5, size=20 }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
@@ -240,7 +248,7 @@ function EQBars({ getAnalyserData, isPlaying, color="#e8435a", barCount=5, size=
 }
 
 function CoverArt({ cover, size=48, title, radius=6 }) {
-  const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "♪";
+  const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "âª";
   const sz = typeof size==="number" ? size : "100%";
   return cover ? (
     <img src={cover} alt={title} style={{ width:sz, height:sz, borderRadius:radius, objectFit:"cover", flexShrink:0, display:"block" }} />
@@ -284,7 +292,7 @@ const Ico = {
   Trending: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>,
 };
 
-// ── THEME CONTEXT ─────────────────────────────────────────────────────────────
+// ââ THEME CONTEXT âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const THEMES = {
   dark: { bg:"#0a0a0f", surface:"#111118", surfaceAlt:"#1a1a24", border:"rgba(255,255,255,0.06)", text:"#e8e8e8", textMuted:"#888", accent:"#e8435a" },
   light: { bg:"#f0f0f5", surface:"#ffffff", surfaceAlt:"#e8e8f0", border:"rgba(0,0,0,0.08)", text:"#1a1a2e", textMuted:"#666", accent:"#e8435a" },
@@ -359,7 +367,7 @@ function Toggle({ value, onChange }) {
   );
 }
 
-// ── NOW PLAYING FULL SCREEN ───────────────────────────────────────────────────
+// ââ NOW PLAYING FULL SCREEN âââââââââââââââââââââââââââââââââââââââââââââââââââ
 function NowPlayingScreen({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, liked, onLike, shuffle, repeat, onShuffleToggle, onRepeatToggle, onClose, getAnalyserData, theme }) {
   const t = THEMES[theme];
   if (!track) return null;
@@ -424,7 +432,7 @@ function NowPlayingScreen({ track, isPlaying, onToggle, progress, duration, onSe
   );
 }
 
-// ── QUEUE PANEL ───────────────────────────────────────────────────────────────
+// ââ QUEUE PANEL âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function QueuePanel({ queue, currentIdx, onSelect, onClose, theme }) {
   const t = THEMES[theme];
   return (
@@ -454,7 +462,7 @@ function QueuePanel({ queue, currentIdx, onSelect, onClose, theme }) {
   );
 }
 
-// ── PLAYER BAR ────────────────────────────────────────────────────────────────
+// ââ PLAYER BAR ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle, onOpenQueue, onOpenNowPlaying, getAnalyserData, theme }) {
   const t = THEMES[theme];
   const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
@@ -474,7 +482,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
             <CoverArt cover={track?.cover} size={40} title={track?.title} radius={4} />
           </div>
           <div style={{ flex:1, minWidth:0 }} onClick={onOpenNowPlaying}>
-            <div style={{ color:t.text, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "—"}</div>
+            <div style={{ color:t.text, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "â"}</div>
             <div style={{ color:t.textMuted, fontSize:11, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.artist ?? ""}</div>
           </div>
           <button className={`icon-btn${liked?" active":""}`} onClick={onLike}><Ico.Heart filled={liked} /></button>
@@ -495,7 +503,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
           <CoverArt cover={track?.cover} size={54} title={track?.title} radius={4} />
         </div>
         <div style={{ minWidth:0 }}>
-          <div style={{ color:t.text, fontSize:14, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "—"}</div>
+          <div style={{ color:t.text, fontSize:14, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "â"}</div>
           <div style={{ color:t.textMuted, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.artist ?? ""}</div>
         </div>
         <button className={`icon-btn${liked?" active":""}`} onClick={onLike} style={{ marginLeft:4, flexShrink:0 }}><Ico.Heart filled={liked} /></button>
@@ -549,7 +557,7 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike, them
           <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":t.text, display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
             {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
           </button>
-        ) : isActive ? <span style={{color:"#e8435a"}}>♫</span> : <span>{index+1}</span>}
+        ) : isActive ? <span style={{color:"#e8435a"}}>â«</span> : <span>{index+1}</span>}
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
         <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
@@ -573,7 +581,7 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike, them
   );
 }
 
-// ── AUDIO EQUALIZER PANEL ─────────────────────────────────────────────────────
+// ââ AUDIO EQUALIZER PANEL âââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function EQPanel({ eqSettings, onChange, onClose, theme }) {
   const t = THEMES[theme];
   const bands = [
@@ -613,7 +621,7 @@ function EQPanel({ eqSettings, onChange, onClose, theme }) {
   );
 }
 
-// ── PLAYBACK SETTINGS PANEL ──────────────────────────────────────────────────
+// ââ PLAYBACK SETTINGS PANEL ââââââââââââââââââââââââââââââââââââââââââââââââââ
 function PlaybackSettings({ settings, onChange, onSleepTimer, onClose, theme }) {
   const [sleepMin, setSleepMin] = useState(0);
   const t = THEMES[theme];
@@ -668,7 +676,7 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose, theme }) 
   );
 }
 
-// ── MOBILE SIDEBAR ────────────────────────────────────────────────────────────
+// ââ MOBILE SIDEBAR ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings, theme }) {
   const t = THEMES[theme];
   if (!open) return null;
@@ -678,7 +686,7 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
       <div className="slide-in" style={{ position:"fixed", top:0, left:0, bottom:0, width:280, background:t.surface, zIndex:401, display:"flex", flexDirection:"column", overflowY:"auto", padding:"0 8px 24px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>♪</div>
+            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>âª</div>
             <span style={{ fontWeight:800, fontSize:18, color:t.text }}>Musify</span>
           </div>
           <button className="icon-btn" onClick={onClose}><Ico.X /></button>
@@ -720,7 +728,7 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
         )}
         {userPlaylists?.map((pl) => (
           <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>♪</div>
+            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>âª</div>
             <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
           </button>
         ))}
@@ -738,13 +746,13 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
   );
 }
 
-// ── DESKTOP SIDEBAR ──────────────────────────────────────────────────────────
+// ââ DESKTOP SIDEBAR ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings, theme }) {
   const t = THEMES[theme];
   return (
     <div style={{ width:240, background:t.bg, display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:`1px solid ${t.border}` }}>
       <div style={{ padding:"8px 12px 20px", display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:30, height:30, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>♪</div>
+        <div style={{ width:30, height:30, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>âª</div>
         <span style={{ fontWeight:800, fontSize:18, color:t.text, letterSpacing:"-0.5px" }}>Musify</span>
       </div>
       <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>setView("home")}><Ico.Home filled={view==="home"} /><span>Home</span></button>
@@ -771,7 +779,7 @@ function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelec
       )}
       {userPlaylists?.map((pl) => (
         <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
-          <div style={{ width:32, height:32, borderRadius:3, background:t.surfaceAlt, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>♪</div>
+          <div style={{ width:32, height:32, borderRadius:3, background:t.surfaceAlt, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>âª</div>
           <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
         </button>
       ))}
@@ -782,7 +790,7 @@ function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelec
   );
 }
 
-// ── HOME VIEW ─────────────────────────────────────────────────────────────────
+// ââ HOME VIEW âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function HomeView({ user, onSelectPlaylist, currentTrack, onPlay, isPlaying, likedSongs, onLike, theme, recentlyPlayed }) {
   const t = THEMES[theme];
   const playlists = resolvePlaylists();
@@ -876,7 +884,7 @@ function HomeView({ user, onSelectPlaylist, currentTrack, onPlay, isPlaying, lik
   );
 }
 
-// ── RECENTLY PLAYED VIEW ──────────────────────────────────────────────────────
+// ââ RECENTLY PLAYED VIEW ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function RecentView({ recentlyPlayed, currentTrack, isPlaying, onPlay, likedSongs, onLike, theme }) {
   const t = THEMES[theme];
   const songs = recentlyPlayed.map(id => SONGS.find(s => s.id === id)).filter(Boolean);
@@ -898,7 +906,7 @@ function RecentView({ recentlyPlayed, currentTrack, isPlaying, onPlay, likedSong
   );
 }
 
-// ── PROFILE & STATS VIEW ──────────────────────────────────────────────────────
+// ââ PROFILE & STATS VIEW ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function ProfileView({ user, userData, likedSongs, recentlyPlayed, theme }) {
   const t = THEMES[theme];
   if (!user) return (
@@ -931,9 +939,9 @@ function ProfileView({ user, userData, likedSongs, recentlyPlayed, theme }) {
       {/* Stats Cards */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:28 }}>
         {[
-          { label:"Songs Liked", value:likedSongs.length, icon:"♥" },
-          { label:"Minutes Listened", value:totalMinutes, icon:"⏱" },
-          { label:"Recently Played", value:recentlyPlayed.length, icon:"🎵" },
+          { label:"Songs Liked", value:likedSongs.length, icon:"â¥" },
+          { label:"Minutes Listened", value:totalMinutes, icon:"â±" },
+          { label:"Recently Played", value:recentlyPlayed.length, icon:"ðµ" },
         ].map(({ label, value, icon }) => (
           <div key={label} style={{ background:t.surface, borderRadius:12, padding:20, textAlign:"center" }}>
             <div style={{ fontSize:24, marginBottom:8 }}>{icon}</div>
@@ -946,7 +954,7 @@ function ProfileView({ user, userData, likedSongs, recentlyPlayed, theme }) {
       {/* Top Songs */}
       {topSongs.length > 0 && (
         <div style={{ marginBottom:28 }}>
-          <h2 style={{ fontSize:16, fontWeight:800, color:t.text, marginBottom:16 }}>🏆 Top Songs</h2>
+          <h2 style={{ fontSize:16, fontWeight:800, color:t.text, marginBottom:16 }}>ð Top Songs</h2>
           {topSongs.map(({ song, plays }, i) => (
             <div key={song.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"10px 0", borderBottom:`1px solid ${t.border}` }}>
               <div style={{ width:24, height:24, borderRadius:"50%", background:"rgba(232,67,90,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"#e8435a", flexShrink:0 }}>{i+1}</div>
@@ -964,7 +972,7 @@ function ProfileView({ user, userData, likedSongs, recentlyPlayed, theme }) {
       {/* Top Artists */}
       {topArtists.length > 0 && (
         <div>
-          <h2 style={{ fontSize:16, fontWeight:800, color:t.text, marginBottom:16 }}>🎤 Top Artists</h2>
+          <h2 style={{ fontSize:16, fontWeight:800, color:t.text, marginBottom:16 }}>ð¤ Top Artists</h2>
           <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
             {topArtists.map(([artist, plays]) => (
               <div key={artist} style={{ background:t.surface, borderRadius:10, padding:"14px 20px", display:"flex", alignItems:"center", gap:12 }}>
@@ -1007,7 +1015,7 @@ function SearchView({ currentTrack, isPlaying, onPlay, likedSongs, onLike, theme
                 <div key={g} style={{ background:colors[i % colors.length], borderRadius:10, padding:20, cursor:"pointer", fontWeight:800, fontSize:15, color:"#fff", position:"relative", overflow:"hidden", minHeight:80 }}
                   onClick={() => setQ(g)}>
                   {g}
-                  <div style={{ position:"absolute", right:-8, bottom:-8, fontSize:42, opacity:.25 }}>♪</div>
+                  <div style={{ position:"absolute", right:-8, bottom:-8, fontSize:42, opacity:.25 }}>âª</div>
                 </div>
               );
             })}
@@ -1066,7 +1074,7 @@ function LikedView({ likedSongs, currentTrack, isPlaying, onPlay, onLike, theme 
   return (
     <div className="fade-in" style={{ paddingBottom:120 }}>
       <div style={{ padding:"48px 32px 32px", background:"linear-gradient(180deg,rgba(232,67,90,0.3) 0%,transparent 100%)", display:"flex", alignItems:"flex-end", gap:28 }}>
-        <div style={{ width:180, height:180, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:70, boxShadow:"0 8px 24px rgba(0,0,0,0.5)", flexShrink:0 }}>♥</div>
+        <div style={{ width:180, height:180, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:70, boxShadow:"0 8px 24px rgba(0,0,0,0.5)", flexShrink:0 }}>â¥</div>
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:"#ccc", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Playlist</div>
           <h1 style={{ fontSize:36, fontWeight:900, color:"#fff", marginBottom:12 }}>Liked Songs</h1>
@@ -1110,7 +1118,7 @@ function LibraryView({ user, userPlaylists, onSelectPlaylist, onShowAuth, theme 
         {userPlaylists?.map((pl) => (
           <div key={pl.id} className="card" onClick={()=>onSelectPlaylist(pl)}>
             <div style={{ width:"100%", paddingTop:"100%", position:"relative" }}>
-              <div style={{ position:"absolute", inset:0, borderRadius:6, background:t.surfaceAlt, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>♪</div>
+              <div style={{ position:"absolute", inset:0, borderRadius:6, background:t.surfaceAlt, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>âª</div>
             </div>
             <div style={{ marginTop:10, fontSize:13, fontWeight:600, color:t.text }}>{pl.name}</div>
             <div style={{ fontSize:11, color:t.textMuted, marginTop:3 }}>Playlist</div>
@@ -1158,7 +1166,7 @@ function AuthView({ onClose, theme }) {
       <div style={{ background:t.surface, borderRadius:14, padding:"36px 32px", width:"100%", maxWidth:400, position:"relative" }}>
         <button className="icon-btn" onClick={onClose} style={{ position:"absolute", top:16, right:16 }}><Ico.X /></button>
         <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:44, height:44, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, margin:"0 auto 12px" }}>♪</div>
+          <div style={{ width:44, height:44, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, margin:"0 auto 12px" }}>âª</div>
           <h2 style={{ fontSize:22, fontWeight:800, color:t.text }}>{mode==="login"?"Log in to Musify":"Sign up for Musify"}</h2>
         </div>
         <button onClick={handleGoogle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"rgba(128,128,128,0.06)", border:`1px solid ${t.border}`, borderRadius:500, padding:"11px 0", color:t.text, fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:20, fontFamily:"inherit" }}>
@@ -1398,7 +1406,7 @@ export default function App() {
             <div style={{ padding:"12px 16px 8px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <button className="icon-btn" onClick={()=>setMobileSidebar(true)} style={{ color:"#fff" }}><Ico.Menu /></button>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ width:26, height:26, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13 }}>♪</div>
+                <div style={{ width:26, height:26, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13 }}>âª</div>
                 <span style={{ fontWeight:800, fontSize:18, color:t.text }}>Musify</span>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:2 }}>

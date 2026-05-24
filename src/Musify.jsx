@@ -118,22 +118,56 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
   const settingsRef = useRef(playbackSettings);
   useEffect(() => { settingsRef.current = playbackSettings; }, [playbackSettings]);
 
-  useEffect(() => {
-    const a = new Audio();
-    a.crossOrigin = "anonymous";
-    a.volume = volume;
-    audioRef.current = a;
-    a.addEventListener("ended", () => onEnded?.());
-    a.addEventListener("play", () => onPlayStateChange?.(true));
-    a.addEventListener("pause", () => onPlayStateChange?.(false));
-    a.addEventListener("timeupdate", () => { setProgress(a.currentTime); });
-    a.addEventListener("loadedmetadata", () => setDuration(a.duration));
-    const unlock = () => { if(unlockedRef.current) return; unlockedRef.current=true; if(audioCtxRef.current?.state==="suspended") audioCtxRef.current.resume(); };
-    document.addEventListener("touchstart", unlock, { once:true });
-    document.addEventListener("click", unlock, { once:true });
-    return () => { a.pause(); clearTimeout(sleepTimerRef.current); };
-  }, []);
+  
+useEffect(() => {
+  const a = new Audio();
 
+  a.crossOrigin = "anonymous";
+  a.volume = volume;
+
+  audioRef.current = a;
+
+  const handleAudioEnded = () => {
+    onEnded?.();
+  };
+
+  a.addEventListener("ended", handleAudioEnded);
+
+  a.addEventListener("play", () => {
+    onPlayStateChange?.(true);
+  });
+
+  a.addEventListener("pause", () => {
+    onPlayStateChange?.(false);
+  });
+
+  a.addEventListener("timeupdate", () => {
+    setProgress(a.currentTime);
+  });
+
+  a.addEventListener("loadedmetadata", () => {
+    setDuration(a.duration);
+  });
+
+  const unlock = () => {
+    if (unlockedRef.current) return;
+
+    unlockedRef.current = true;
+
+    if (audioCtxRef.current?.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+  };
+
+  document.addEventListener("touchstart", unlock, { once: true });
+  document.addEventListener("click", unlock, { once: true });
+
+  return () => {
+    a.removeEventListener("ended", handleAudioEnded);
+    a.pause();
+    clearTimeout(sleepTimerRef.current);
+  };
+}, [onEnded, volume]);
   const setupWebAudio = useCallback((eqSettings) => {
     if (audioCtxRef.current) return;
     try {

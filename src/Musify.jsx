@@ -35,6 +35,7 @@ const SONGS = [
   { id: "5", title: "Uyiril Thodum", artist: "Sushin Shyam, Sooraj Santhosh, Anne Amie", album: "Kumbalangi Nights", genre: "Melody", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557117/%E0%B4%89%E0%B4%AF%E0%B4%BF%E0%B4%B0%E0%B4%BF%E0%B5%BD_%E0%B4%A4%E0%B5%8A%E0%B4%9F%E0%B5%81%E0%B4%82_Uyiril_Thodum_-_Kumbalangi_Nights_Official_Video_Song___Sooraj_Santhosh___Anne_Amie_ZKhOs_Pc_7s_tyqluu.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg" },
   { id: "6", title: "Darshana", artist: "Vineeth Sreenivasan", album: "Hridayam", genre: "Melody", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557122/Darshana_-_Official_Video_Song___Hridayam___Pranav___Darshana___Vineeth___Hesham___Merryland_epAFDEJImrU_hsyy47.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/ab67616d00001e029b8c8ab6e0a59493a5fa06c6_pi7ztc.jpg" },
   { id: "7", title: "Pavizha Mazha", artist: "K. S. Harisankar", album: "Athiran", genre: "Melody", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg" },
+  
   {
     id: "32873937c",
     title: "Oru Rathri Koodi",
@@ -42,6 +43,7 @@ const SONGS = [
     album: "Summer in Bathlehem",
     audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779590120/Oru_Raathri_Koodi_HD1080p_HD_Remastered_Suresh_Gopi_Manju_Warrier_Summer_in_Bethlehem_-_Saina_Music_youtube_ej6nm5.mp3",
     cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779590050/maxresdefault_1_pl54hc.jpg",
+    genre: "Melody"
   },
 ].filter((s) => s.id && s.title && s.audioUrl);
 

@@ -35,6 +35,14 @@ const SONGS = [
   { id: "5", title: "Uyiril Thodum", artist: "Sushin Shyam, Sooraj Santhosh, Anne Amie", album: "Kumbalangi Nights", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557117/%E0%B4%89%E0%B4%AF%E0%B4%BF%E0%B4%B0%E0%B4%BF%E0%B5%BD_%E0%B4%A4%E0%B5%8A%E0%B4%9F%E0%B5%81%E0%B4%82_Uyiril_Thodum_-_Kumbalangi_Nights_Official_Video_Song___Sooraj_Santhosh___Anne_Amie_ZKhOs_Pc_7s_tyqluu.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg" },
   { id: "6", title: "Darshana", artist: "Vineeth Sreenivasan", album: "Hridayam", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557122/Darshana_-_Official_Video_Song___Hridayam___Pranav___Darshana___Vineeth___Hesham___Merryland_epAFDEJImrU_hsyy47.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/ab67616d00001e029b8c8ab6e0a59493a5fa06c6_pi7ztc.jpg" },
   { id: "7", title: "Pavizha Mazha", artist: "K. S. Harisankar", album: "Athiran", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg" },
+  {
+    id: "240677fzi",
+    title: "Oru Rathri Koode",
+    artist: "K J Yesudas",
+    album: "",
+    audioUrl: "https://youtu.be/03cA3fje_NQ?si=oWX9ZG5Cb4-EsvTl",
+    cover: "",
+  },
 ].filter((s) => s.id && s.title && s.audioUrl);
 
 const PLAYLISTS = [
@@ -153,7 +161,7 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
 }
 
 function CoverArt({ cover, size=48, title, radius=6 }) {
-  const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "♪";
+  const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "âª";
   const sz = typeof size==="number" ? size : "100%";
   return cover ? (
     <img src={cover} alt={title} style={{ width:sz, height:sz, borderRadius:radius, objectFit:"cover", flexShrink:0, display:"block" }} />
@@ -265,7 +273,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <CoverArt cover={track?.cover} size={40} title={track?.title} radius={4} />
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ color:"#f0f0f0", fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "—"}</div>
+            <div style={{ color:"#f0f0f0", fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "â"}</div>
             <div style={{ color:"#888", fontSize:11, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.artist ?? ""}</div>
           </div>
           <button className={`icon-btn${liked?" active":""}`} onClick={onLike}><Ico.Heart filled={liked} /></button>
@@ -284,7 +292,7 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
       <div style={{ display:"flex", alignItems:"center", gap:14, minWidth:0 }}>
         <CoverArt cover={track?.cover} size={54} title={track?.title} radius={4} />
         <div style={{ minWidth:0 }}>
-          <div style={{ color:"#f0f0f0", fontSize:14, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "—"}</div>
+          <div style={{ color:"#f0f0f0", fontSize:14, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "â"}</div>
           <div style={{ color:"#888", fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.artist ?? ""}</div>
         </div>
         <button className={`icon-btn${liked?" active":""}`} onClick={onLike} style={{ marginLeft:4, flexShrink:0 }}><Ico.Heart filled={liked} /></button>
@@ -330,7 +338,7 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
           <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":"#fff", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
             {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
           </button>
-        ) : isActive ? <span style={{color:"#e8435a"}}>♫</span> : <span>{index+1}</span>}
+        ) : isActive ? <span style={{color:"#e8435a"}}>â«</span> : <span>{index+1}</span>}
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
         <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
@@ -354,7 +362,7 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
   );
 }
 
-// ── PLAYBACK SETTINGS PANEL ──────────────────────────────────────────────────
+// ââ PLAYBACK SETTINGS PANEL ââââââââââââââââââââââââââââââââââââââââââââââââââ
 function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   const [sleepMin, setSleepMin] = useState(0);
 
@@ -409,7 +417,7 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   );
 }
 
-// ── MOBILE SIDEBAR DRAWER ────────────────────────────────────────────────────
+// ââ MOBILE SIDEBAR DRAWER ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings }) {
   if (!open) return null;
   return (
@@ -419,7 +427,7 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
         {/* Header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>♪</div>
+            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>âª</div>
             <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
           </div>
           <button className="icon-btn" onClick={onClose}><Ico.X /></button>
@@ -474,7 +482,7 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
         )}
         {userPlaylists?.map((pl) => (
           <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>♪</div>
+            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>âª</div>
             <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
           </button>
         ))}
@@ -501,12 +509,12 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
   );
 }
 
-// ── DESKTOP SIDEBAR ──────────────────────────────────────────────────────────
+// ââ DESKTOP SIDEBAR ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings }) {
   return (
     <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>
       <div style={{ padding:"8px 12px 20px", display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:30, height:30, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>♪</div>
+        <div style={{ width:30, height:30, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>âª</div>
         <span style={{ fontWeight:800, fontSize:18, color:"#fff", letterSpacing:"-0.5px" }}>Musify</span>
       </div>
       <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>setView("home")}><Ico.Home filled={view==="home"} /><span>Home</span></button>
@@ -531,7 +539,7 @@ function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelec
       )}
       {userPlaylists?.map((pl) => (
         <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
-          <div style={{ width:32, height:32, borderRadius:3, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>♪</div>
+          <div style={{ width:32, height:32, borderRadius:3, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>âª</div>
           <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
         </button>
       ))}
@@ -642,7 +650,7 @@ function LikedView({ likedSongs, currentTrack, isPlaying, onPlay, onLike }) {
   return (
     <div className="fade-in" style={{ paddingBottom:120 }}>
       <div style={{ padding:"48px 32px 32px", background:"linear-gradient(180deg,rgba(232,67,90,0.3) 0%,transparent 100%)", display:"flex", alignItems:"flex-end", gap:28 }}>
-        <div style={{ width:180, height:180, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:70, boxShadow:"0 8px 24px rgba(0,0,0,0.5)", flexShrink:0 }}>♥</div>
+        <div style={{ width:180, height:180, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:70, boxShadow:"0 8px 24px rgba(0,0,0,0.5)", flexShrink:0 }}>â¥</div>
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:"#ccc", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Playlist</div>
           <h1 style={{ fontSize:36, fontWeight:900, color:"#fff", marginBottom:12 }}>Liked Songs</h1>
@@ -685,7 +693,7 @@ function LibraryView({ user, userPlaylists, onSelectPlaylist, onShowAuth }) {
         {userPlaylists?.map((pl) => (
           <div key={pl.id} className="card" onClick={()=>onSelectPlaylist(pl)}>
             <div style={{ width:"100%", paddingTop:"100%", position:"relative" }}>
-              <div style={{ position:"absolute", inset:0, borderRadius:6, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>♪</div>
+              <div style={{ position:"absolute", inset:0, borderRadius:6, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>âª</div>
             </div>
             <div style={{ marginTop:10, fontSize:13, fontWeight:600, color:"#f0f0f0" }}>{pl.name}</div>
             <div style={{ fontSize:11, color:"#888", marginTop:3 }}>Playlist</div>
@@ -732,7 +740,7 @@ function AuthView({ onClose }) {
       <div style={{ background:"#111118", borderRadius:14, padding:"36px 32px", width:"100%", maxWidth:400, position:"relative" }}>
         <button className="icon-btn" onClick={onClose} style={{ position:"absolute", top:16, right:16 }}><Ico.X /></button>
         <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:44, height:44, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, margin:"0 auto 12px" }}>♪</div>
+          <div style={{ width:44, height:44, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, margin:"0 auto 12px" }}>âª</div>
           <h2 style={{ fontSize:22, fontWeight:800, color:"#fff" }}>{mode==="login"?"Log in to Musify":"Sign up for Musify"}</h2>
         </div>
         <button onClick={handleGoogle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:500, padding:"11px 0", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:20, fontFamily:"inherit" }}>
@@ -896,7 +904,7 @@ export default function App() {
             <div style={{ padding:"12px 16px 8px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <button className="icon-btn" onClick={()=>setMobileSidebar(true)} style={{ color:"#fff" }}><Ico.Menu /></button>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ width:26, height:26, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13 }}>♪</div>
+                <div style={{ width:26, height:26, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13 }}>âª</div>
                 <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
               </div>
               {user ? (

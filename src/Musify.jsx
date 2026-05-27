@@ -44,12 +44,12 @@ const PLAYLISTS = [
 ];
 
 const EQ_PRESETS = {
-  Normal: [0, 0, 0, 0, 0],
-  Rock: [5, 4, -2, 3, 5],
-  Pop: [-2, 2, 5, 3, -1],
-  Jazz: [3, 2, -2, 2, 4],
-  Classical: [4, 3, -2, 2, 3],
-  BassBoost: [6, 4, 0, 0, 0],
+  Normal: [0, 0, 0],
+  Rock: [5, -2, 5],
+  Pop: [-2, 5, 2],
+  Jazz: [3, -2, 3],
+  Classical: [4, -1, 2],
+  BassBoost: [7, 1, -2],
 };
 
 function resolvePlaylists() {
@@ -92,11 +92,21 @@ function useSongDuration(audioUrl) {
   return dur;
 }
 
-function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
+function MusifyLogo({ size = 32, style = {} }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: "22%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "#000", border: "1px solid rgba(255,50,50,0.2)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", ...style }}>
+      <img src="https://res.cloudinary.com/dasnicvlp/image/upload/v1779857197/1000081221.png" alt="Musify Logo" style={{ width: "105%", height: "105%", objectFit: "cover" }} />
+    </div>
+  );
+}
+
+function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange) {
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
   const gainRef = useRef(null);
-  const eqBandsRef = useRef([]); 
+  const bassFilterRef = useRef(null);
+  const midFilterRef = useRef(null);
+  const trebleFilterRef = useRef(null);
   const sleepTimerRef = useRef(null);
   const unlockedRef = useRef(false);
   const [progress, setProgress] = useState(0);
@@ -106,14 +116,23 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
 
   useEffect(() => { settingsRef.current = playbackSettings; }, [playbackSettings]);
 
+  // Apply Equalizer adjustments instantly
   useEffect(() => {
-    const preset = EQ_PRESETS[playbackSettings?.eqPreset || "Normal"] || EQ_PRESETS.Normal;
-    if (eqBandsRef.current.length && audioCtxRef.current) {
-      eqBandsRef.current.forEach((filter, i) => {
-        filter.gain.setTargetAtTime(preset[i], audioCtxRef.current.currentTime, 0.1);
-      });
+    if (audioCtxRef.current) {
+      const now = audioCtxRef.current.currentTime;
+      bassFilterRef.current?.gain.setTargetAtTime(playbackSettings.bass, now, 0.1);
+      midFilterRef.current?.gain.setTargetAtTime(playbackSettings.mid, now, 0.1);
+      trebleFilterRef.current?.gain.setTargetAtTime(playbackSettings.treble, now, 0.1);
     }
-  }, [playbackSettings?.eqPreset]);
+  }, [playbackSettings.bass, playbackSettings.mid, playbackSettings.treble]);
+
+  // Watch for overall preset clicks
+  useEffect(() => {
+    if (audioCtxRef.current && EQ_PRESETS[playbackSettings.eqPreset]) {
+      const [b, m, t] = EQ_PRESETS[playbackSettings.eqPreset];
+      onEqChange?.(b, m, t);
+    }
+  }, [playbackSettings.eqPreset]);
 
   useEffect(() => {
     const a = new Audio();
@@ -123,9 +142,7 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
     a.addEventListener("ended", () => onEnded?.());
     a.addEventListener("play", () => onPlayStateChange?.(true));
     a.addEventListener("pause", () => onPlayStateChange?.(false));
-    a.addEventListener("timeupdate", () => {
-      setProgress(a.currentTime);
-    });
+    a.addEventListener("timeupdate", () => setProgress(a.currentTime));
     a.addEventListener("loadedmetadata", () => setDuration(a.duration));
   
     const unlock = () => { if(unlockedRef.current) return; unlockedRef.current=true; if(audioCtxRef.current?.state==="suspended") audioCtxRef.current.resume(); };
@@ -140,26 +157,37 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       audioCtxRef.current = ctx;
       const src = ctx.createMediaElementSource(audioRef.current);
+      
       const gain = ctx.createGain();
       gainRef.current = gain;
       gain.gain.value = volume;
 
-      const frequencies = [60, 230, 910, 3600, 14000];
-      let prevNode = gain;
-      const eqNodes = frequencies.map(freq => {
-        const filter = ctx.createBiquadFilter();
-        filter.type = "peaking";
-        filter.frequency.value = freq;
-        filter.Q.value = 1.0;
-        filter.gain.value = 0; 
-        prevNode.connect(filter);
-        prevNode = filter;
-        return filter;
-      });
-      eqBandsRef.current = eqNodes;
+      // 3-Band Parametric Equalizer Nodes
+      const bass = ctx.createBiquadFilter();
+      bass.type = "lowshelf";
+      bass.frequency.value = 200;
+      bass.gain.value = settingsRef.current.bass;
+      bassFilterRef.current = bass;
 
+      const mid = ctx.createBiquadFilter();
+      mid.type = "peaking";
+      mid.Q.value = 1.0;
+      mid.frequency.value = 1000;
+      mid.gain.value = settingsRef.current.mid;
+      midFilterRef.current = mid;
+
+      const treble = ctx.createBiquadFilter();
+      treble.type = "highshelf";
+      treble.frequency.value = 5000;
+      treble.gain.value = settingsRef.current.treble;
+      trebleFilterRef.current = treble;
+
+      // Connect Chain: Source -> Gain -> Bass -> Mid -> Treble -> Destination
       src.connect(gain);
-      prevNode.connect(ctx.destination);
+      gain.connect(bass);
+      bass.connect(mid);
+      mid.connect(treble);
+      treble.connect(ctx.destination);
     } catch(e) { console.warn("WebAudio failed:", e); }
   }, [volume]);
 
@@ -187,18 +215,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
     setVol: (v) => { const val = v/100; setVolume(val); if(audioRef.current) audioRef.current.volume=val; if(gainRef.current) gainRef.current.gain.value=val; },
     setSleepTimer,
   };
-}
-
-function CoverArt({ cover, size=48, title, radius=6 }) {
-  const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "M";
-  const sz = typeof size==="number" ? size : "100%";
-  return cover ? (
-    <img src={cover} alt={title} style={{ width:sz, height:sz, borderRadius:radius, objectFit:"cover", flexShrink:0, display:"block" }} />
-  ) : (
-    <div style={{ width:sz, height:sz, borderRadius:radius, flexShrink:0, background:"linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:typeof size==="number"?Math.max(10,size*0.28):14, fontWeight:800, color:"rgba(255,255,255,0.9)" }}>
-      {initials}
-    </div>
-  );
 }
 
 const Ico = {
@@ -268,6 +284,9 @@ const GlobalStyles = () => (
     .fade-in { animation:fadeIn .25s ease; }
     @keyframes slideIn { from{transform:translateY(100%)} to{transform:translateY(0)} }
     .slide-in { animation:slideIn .3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .eq-slider-container { display: flex; flexDirection: column; gap: 4px; flex: 1; }
+    .eq-slider-row { display: flex; alignItems: center; gap: 12px; color: #ccc; fontSize: 13px; }
+    .eq-slider { flex: 1; accentColor: #e8435a; background: rgba(255,255,255,0.1); height: 4px; borderRadius: 2px; outline: none; }
     @media (max-width:768px) { .song-row { grid-template-columns:28px 1fr 52px; } .song-row .album-col { display:none; } }
   `}</style>
 );
@@ -491,7 +510,7 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
         {row("Repeat", "Loop playback mode", "repeat", "select", [
           {value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}
         ])}
-        {row("Equalizer Preset", "Adjust audio frequencies", "eqPreset", "select", [
+        {row("Equalizer Preset", "Choose frequency configuration", "eqPreset", "select", [
           {value:"Normal",label:"Normal"},
           {value:"Rock",label:"Rock"},
           {value:"Pop",label:"Pop"},
@@ -499,7 +518,30 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
           {value:"Classical",label:"Classical"},
           {value:"BassBoost",label:"Bass Boost"}
         ])}
-        {row("Crossfade", "Smooth transition between songs", "crossfade", "toggle")}
+
+        {/* Manual Equalizer Frequency Adjustments */}
+        <div style={{ padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 12 }}>Manual Equalizer Tuning</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="eq-slider-row">
+              <span style={{ minWidth: 50 }}>Bass</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.bass} onChange={(e) => onChange("bass", parseFloat(e.target.value))} />
+              <span style={{ minWidth: 32, textAlign: "right" }}>{settings.bass > 0 ? `+${settings.bass}` : settings.bass}dB</span>
+            </div>
+            <div className="eq-slider-row">
+              <span style={{ minWidth: 50 }}>Mid</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.mid} onChange={(e) => onChange("mid", parseFloat(e.target.value))} />
+              <span style={{ minWidth: 32, textAlign: "right" }}>{settings.mid > 0 ? `+${settings.mid}` : settings.mid}dB</span>
+            </div>
+            <div className="eq-slider-row">
+              <span style={{ minWidth: 50 }}>Treble</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.treble} onChange={(e) => onChange("treble", parseFloat(e.target.value))} />
+              <span style={{ minWidth: 32, textAlign: "right" }}>{settings.treble > 0 ? `+${settings.treble}` : settings.treble}dB</span>
+            </div>
+          </div>
+        </div>
+
+        {row("Crossfade", "Smooth transition between songs", "crossfade")}
         {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
         {row("High Quality Audio", "Stream at highest quality (uses more data)", "hqAudio")}
 
@@ -528,7 +570,7 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
       <div className="slide-in" style={{ position:"fixed", top:0, left:0, bottom:0, width:280, background:"#0d0d14", zIndex:401, display:"flex", flexDirection:"column", overflowY:"auto", padding:"0 8px 24px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700 }}>M</div>
+            <MusifyLogo size={28} />
             <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
           </div>
           <button className="icon-btn" onClick={onClose}><Ico.X /></button>
@@ -610,7 +652,7 @@ function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelec
   return (
     <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>
       <div style={{ padding:"8px 12px 20px", display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:30, height:30, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:700 }}>M</div>
+        <MusifyLogo size={30} />
         <span style={{ fontWeight:800, fontSize:18, color:"#fff", letterSpacing:"-0.5px" }}>Musify</span>
       </div>
       <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>setView("home")}><Ico.Home filled={view==="home"} /><span>Home</span></button>
@@ -839,7 +881,7 @@ function AuthView({ onClose }) {
       <div style={{ background:"#111118", borderRadius:14, padding:"36px 32px", width:"100%", maxWidth:400, position:"relative" }}>
         <button className="icon-btn" onClick={onClose} style={{ position:"absolute", top:16, right:16 }}><Ico.X /></button>
         <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:44, height:44, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, margin:"0 auto 12px", fontWeight:700 }}>M</div>
+          <MusifyLogo size={44} style={{ margin: "0 auto 12px" }} />
           <h2 style={{ fontSize:22, fontWeight:800, color:"#fff" }}>{mode==="login"?"Log in to Musify":"Sign up for Musify"}</h2>
         </div>
         <button onClick={handleGoogle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:500, padding:"11px 0", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:20, fontFamily:"inherit" }}>
@@ -940,7 +982,8 @@ export default function App() {
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState("off");
   
-  const [pbSettings, setPbSettings] = useState({ shuffle:false, repeat:"off", crossfade:false, normalize:false, hqAudio:false, sleepTimer:0, eqPreset: "Normal" });
+  // Equalizer adjustments state values added to settings object
+  const [pbSettings, setPbSettings] = useState({ shuffle:false, repeat:"off", crossfade:false, normalize:false, hqAudio:false, sleepTimer:0, eqPreset: "Normal", bass: 0, mid: 0, treble: 0 });
 
   const likedSongs = userData?.likedSongs || [];
   const userPlaylists = userData?.playlists || [];
@@ -953,7 +996,11 @@ export default function App() {
     else setIsPlaying(false);
   }, [repeat,queueIdx,queue]);
 
-  const player = useAudioPlayer(handleEnded, setIsPlaying, pbSettings);
+  const handleManualEqChange = useCallback((b, m, t) => {
+    setPbSettings(prev => ({ ...prev, bass: b, mid: m, treble: t }));
+  }, []);
+
+  const player = useAudioPlayer(handleEnded, setIsPlaying, pbSettings, handleManualEqChange);
 
   useEffect(() => { if(currentTrack) player.load(currentTrack.audioUrl); }, [currentTrack]);
   useEffect(() => {
@@ -1005,7 +1052,7 @@ export default function App() {
             <div style={{ padding:"12px 16px 8px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <button className="icon-btn" onClick={()=>setMobileSidebar(true)} style={{ color:"#fff" }}><Ico.Menu /></button>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ width:26, height:26, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700 }}>M</div>
+                <MusifyLogo size={26} />
                 <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
               </div>
               {user ? (

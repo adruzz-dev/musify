@@ -11,7 +11,7 @@ import {
 import { getStorage } from "firebase/storage";
 import AdminPanel from "./AdminPanel";
 
-// Your brand-new Firebase configuration
+// New Firebase Project Configuration Keys
 const firebaseConfig = {
   apiKey: "AIzaSyChXUcH4fVCM8db2lA7OlrcYGQYXQP-2q0",
   authDomain: "musify-new-348db.firebaseapp.com",
@@ -92,7 +92,6 @@ function useSongDuration(audioUrl) {
   return dur;
 }
 
-// Fixed missing CoverArt Definition inside the source tree
 function CoverArt({ cover, size=48, title, radius=6 }) {
   const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "M";
   const sz = typeof size==="number" ? size : "100%";
@@ -110,6 +109,102 @@ function MusifyLogo({ size = 32, style = {} }) {
     <div style={{ width: size, height: size, borderRadius: "22%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "#000", border: "1px solid rgba(255,50,50,0.2)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", ...style }}>
       <img src="https://res.cloudinary.com/dasnicvlp/image/upload/v1779857197/1000081221.png" alt="Musify Logo" style={{ width: "105%", height: "105%", objectFit: "cover" }} />
     </div>
+  );
+}
+
+const Ico = {
+  Home: ({ filled }) => <svg width="20" height="20" viewBox="0 0 24 24" fill={filled?"currentColor":"none"} stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  Search: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>,
+  Library: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 5h-3v5.5a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 2.5-2.5c.57 0 1.08.19 1.5.5V5h4v2zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z"/></svg>,
+  Heart: ({ filled }) => <svg width="16" height="16" viewBox="0 0 24 24" fill={filled?"#e8435a":"none"} stroke={filled?"#e8435a":"currentColor"} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>,
+  Play: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>,
+  Pause: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>,
+  Prev: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="19,20 9,12 19,4"/><rect x="5" y="4" width="2" height="16"/></svg>,
+  Next: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,4 15,12 5,20"/><rect x="17" y="4" width="2" height="16"/></svg>,
+  Shuffle: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>,
+  Repeat: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>,
+  RepeatOne: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/></svg>,
+  Volume: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>,
+  Plus: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>,
+  X: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>,
+  Menu: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>,
+  Settings: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>,
+  LogOut: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  User: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>,
+  Google: () => <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>,
+  Clock: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  ChevronDown: () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>,
+  MoreVertical: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>,
+  Share: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
+  Cast: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg>,
+  List: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+};
+
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800;900&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; background: #0a0a0f; color: #e8e8e8; font-family: 'DM Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    button { font-family: inherit; }
+    .sidebar-item { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; cursor:pointer; color:#aaa; font-size:14px; font-weight:500; transition:all .15s; background:none; border:none; width:100%; text-align:left; }
+    .sidebar-item:hover { color:#fff; background:rgba(255,255,255,0.07); }
+    .sidebar-item.active { color:#fff; background:rgba(232,67,90,0.15); }
+    .song-row { display:grid; grid-template-columns:32px 1fr 1fr 56px; align-items:center; gap:12px; padding:8px 16px; border-radius:6px; cursor:pointer; transition:background .12s; }
+    .song-row:hover { background:rgba(255,255,255,0.06); }
+    .song-row.active { background:rgba(232,67,90,0.08); }
+    .song-row .num { color:#888; font-size:13px; text-align:center; }
+    .song-row.active .num { color:#e8435a; }
+    .icon-btn { background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:6px; border-radius:50%; color:#888; transition:all .15s; }
+    .icon-btn:hover { color:#fff; background:rgba(255,255,255,0.08); }
+    .icon-btn.active { color:#e8435a; }
+    .progress-bar { flex:1; height:4px; background:rgba(255,255,255,0.15); border-radius:2px; cursor:pointer; position:relative; }
+    .progress-bar:hover .progress-fill { background:#e8435a; }
+    .progress-bar:hover .progress-thumb { opacity:1; }
+    .progress-fill { height:100%; background:#fff; border-radius:2px; transition:width .1s linear; pointer-events:none; }
+    .progress-thumb { position:absolute; top:50%; right:-5px; transform:translateY(-50%); width:12px; height:12px; background:#fff; border-radius:50%; opacity:0; transition:opacity .15s; pointer-events:none; }
+    .volume-bar { width:80px; height:4px; background:rgba(255,255,255,0.15); border-radius:2px; cursor:pointer; position:relative; }
+    .volume-fill { height:100%; background:#fff; border-radius:2px; }
+    .card { background:#111118; border-radius:10px; padding:14px; cursor:pointer; transition:background .15s; }
+    .card:hover { background:#1a1a24; }
+    .input-field { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:11px 14px; color:#e8e8e8; font-size:14px; font-family:inherit; outline:none; width:100%; transition:border .15s; }
+    .input-field:focus { border-color:#e8435a; }
+    .btn-primary { background:#e8435a; color:#fff; border:none; border-radius:500px; padding:12px 32px; font-size:14px; font-weight:700; cursor:pointer; transition:all .15s; }
+    .btn-primary:hover { background:#ff5570; transform:scale(1.02); }
+    .btn-outline { background:transparent; color:#e8e8e8; border:1px solid rgba(255,255,255,0.25); border-radius:500px; padding:12px 32px; font-size:14px; font-weight:600; cursor:pointer; transition:all .15s; }
+    .btn-outline:hover { border-color:#fff; }
+    .toggle-track { width:44px; height:24px; border-radius:12px; cursor:pointer; border:none; transition:background .2s; position:relative; flex-shrink:0; }
+    .toggle-thumb { width:18px; height:18px; background:#fff; border-radius:50%; position:absolute; top:3px; transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,0.4); }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .fade-in { animation:fadeIn .25s ease; }
+    @keyframes slideIn { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .slide-in { animation:slideIn .3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .eq-slider-container { display: flex; flex-direction: column; gap: 12px; padding: 6px 0; }
+    .eq-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #f0f0f0; font-size: 14px; }
+    .eq-label { width: 56px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    .eq-slider { flex: 1; accent-color: #e8435a; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; outline: none; cursor: pointer; }
+    .eq-value { width: 44px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; }
+    @media (max-width:768px) { .song-row { grid-template-columns:28px 1fr 52px; } .song-row .album-col { display:none; } }
+  `}</style>
+);
+
+function SeekBar({ progress, duration, onSeek, style={} }) {
+  const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
+  const safeProgress = progress && isFinite(progress) ? progress : 0;
+  const pct = safeDuration > 0 ? (safeProgress / safeDuration) * 100 : 0;
+  return (
+    <div className="progress-bar" style={style} onClick={(e) => { const r=e.currentTarget.getBoundingClientRect(); onSeek((e.clientX-r.left)/r.width); }}>
+      <div className="progress-fill" style={{ width:`${pct}%` }} />
+      <div className="progress-thumb" style={{ left:`${pct}%`, right:"unset" }} />
+    </div>
+  );
+}
+
+function Toggle({ value, onChange }) {
+  return (
+    <button className="toggle-track" onClick={() => onChange(!value)} style={{ background: value ? "#e8435a" : "rgba(255,255,255,0.15)" }}>
+      <div className="toggle-thumb" style={{ left: value ? "23px" : "3px" }} />
+    </button>
   );
 }
 
@@ -224,102 +319,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
     setVol: (v) => { const val = v/100; setVolume(val); if(audioRef.current) audioRef.current.volume=val; if(gainRef.current) gainRef.current.gain.value=val; },
     setSleepTimer,
   };
-}
-
-const Ico = {
-  Home: ({ filled }) => <svg width="20" height="20" viewBox="0 0 24 24" fill={filled?"currentColor":"none"} stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-  Search: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>,
-  Library: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 5h-3v5.5a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 2.5-2.5c.57 0 1.08.19 1.5.5V5h4v2zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z"/></svg>,
-  Heart: ({ filled }) => <svg width="16" height="16" viewBox="0 0 24 24" fill={filled?"#e8435a":"none"} stroke={filled?"#e8435a":"currentColor"} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>,
-  Play: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>,
-  Pause: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>,
-  Prev: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="19,20 9,12 19,4"/><rect x="5" y="4" width="2" height="16"/></svg>,
-  Next: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,4 15,12 5,20"/><rect x="17" y="4" width="2" height="16"/></svg>,
-  Shuffle: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>,
-  Repeat: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>,
-  RepeatOne: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/></svg>,
-  Volume: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>,
-  Plus: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>,
-  X: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>,
-  Menu: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>,
-  Settings: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>,
-  LogOut: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
-  User: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>,
-  Google: () => <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>,
-  Clock: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-  ChevronDown: () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>,
-  MoreVertical: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>,
-  Share: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
-  Cast: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg>,
-  List: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
-};
-
-const GlobalStyles = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800;900&display=swap');
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #root { height: 100%; background: #0a0a0f; color: #e8e8e8; font-family: 'DM Sans', sans-serif; }
-    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-    button { font-family: inherit; }
-    .sidebar-item { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; cursor:pointer; color:#aaa; font-size:14px; font-weight:500; transition:all .15s; background:none; border:none; width:100%; text-align:left; }
-    .sidebar-item:hover { color:#fff; background:rgba(255,255,255,0.07); }
-    .sidebar-item.active { color:#fff; background:rgba(232,67,90,0.15); }
-    .song-row { display:grid; grid-template-columns:32px 1fr 1fr 56px; align-items:center; gap:12px; padding:8px 16px; border-radius:6px; cursor:pointer; transition:background .12s; }
-    .song-row:hover { background:rgba(255,255,255,0.06); }
-    .song-row.active { background:rgba(232,67,90,0.08); }
-    .song-row .num { color:#888; font-size:13px; text-align:center; }
-    .song-row.active .num { color:#e8435a; }
-    .icon-btn { background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:6px; border-radius:50%; color:#888; transition:all .15s; }
-    .icon-btn:hover { color:#fff; background:rgba(255,255,255,0.08); }
-    .icon-btn.active { color:#e8435a; }
-    .progress-bar { flex:1; height:4px; background:rgba(255,255,255,0.15); border-radius:2px; cursor:pointer; position:relative; }
-    .progress-bar:hover .progress-fill { background:#e8435a; }
-    .progress-bar:hover .progress-thumb { opacity:1; }
-    .progress-fill { height:100%; background:#fff; border-radius:2px; transition:width .1s linear; pointer-events:none; }
-    .progress-thumb { position:absolute; top:50%; right:-5px; transform:translateY(-50%); width:12px; height:12px; background:#fff; border-radius:50%; opacity:0; transition:opacity .15s; pointer-events:none; }
-    .volume-bar { width:80px; height:4px; background:rgba(255,255,255,0.15); border-radius:2px; cursor:pointer; position:relative; }
-    .volume-fill { height:100%; background:#fff; border-radius:2px; }
-    .card { background:#111118; border-radius:10px; padding:14px; cursor:pointer; transition:background .15s; }
-    .card:hover { background:#1a1a24; }
-    .input-field { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:11px 14px; color:#e8e8e8; font-size:14px; font-family:inherit; outline:none; width:100%; transition:border .15s; }
-    .input-field:focus { border-color:#e8435a; }
-    .btn-primary { background:#e8435a; color:#fff; border:none; border-radius:500px; padding:12px 32px; font-size:14px; font-weight:700; cursor:pointer; transition:all .15s; }
-    .btn-primary:hover { background:#ff5570; transform:scale(1.02); }
-    .btn-outline { background:transparent; color:#e8e8e8; border:1px solid rgba(255,255,255,0.25); border-radius:500px; padding:12px 32px; font-size:14px; font-weight:600; cursor:pointer; transition:all .15s; }
-    .btn-outline:hover { border-color:#fff; }
-    .toggle-track { width:44px; height:24px; border-radius:12px; cursor:pointer; border:none; transition:background .2s; position:relative; flex-shrink:0; }
-    .toggle-thumb { width:18px; height:18px; background:#fff; border-radius:50%; position:absolute; top:3px; transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,0.4); }
-    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-    .fade-in { animation:fadeIn .25s ease; }
-    @keyframes slideIn { from{transform:translateY(100%)} to{transform:translateY(0)} }
-    .slide-in { animation:slideIn .3s cubic-bezier(0.2, 0.8, 0.2, 1); }
-    .eq-slider-container { display: flex; flex-direction: column; gap: 12px; padding: 6px 0; }
-    .eq-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #f0f0f0; font-size: 14px; }
-    .eq-label { width: 56px; font-weight: 500; color: rgba(255,255,255,0.6); }
-    .eq-slider { flex: 1; accent-color: #e8435a; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; outline: none; cursor: pointer; }
-    .eq-value { width: 44px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; }
-    @media (max-width:768px) { .song-row { grid-template-columns:28px 1fr 52px; } .song-row .album-col { display:none; } }
-  `}</style>
-);
-
-function SeekBar({ progress, duration, onSeek, style={} }) {
-  const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
-  const safeProgress = progress && isFinite(progress) ? progress : 0;
-  const pct = safeDuration > 0 ? (safeProgress / safeDuration) * 100 : 0;
-  return (
-    <div className="progress-bar" style={style} onClick={(e) => { const r=e.currentTarget.getBoundingClientRect(); onSeek((e.clientX-r.left)/r.width); }}>
-      <div className="progress-fill" style={{ width:`${pct}%` }} />
-      <div className="progress-thumb" style={{ left:`${pct}%`, right:"unset" }} />
-    </div>
-  );
-}
-
-function Toggle({ value, onChange }) {
-  return (
-    <button className="toggle-track" onClick={() => onChange(!value)} style={{ background: value ? "#e8435a" : "rgba(255,255,255,0.15)" }}>
-      <div className="toggle-thumb" style={{ left: value ? "23px" : "3px" }} />
-    </button>
-  );
 }
 
 function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle, onExpand }) {
@@ -536,128 +535,38 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   );
 }
 
-function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings }) {
-  if (!open) return null;
+function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
+  const [hovered, setHovered] = useState(false);
+  const duration = useSongDuration(song.audioUrl);
   return (
-    <>
-      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:400 }} onClick={onClose} />
-      <div className="slide-in" style={{ position:"fixed", top:0, left:0, bottom:0, width:280, background:"#0d0d14", zIndex:401, display:"flex", flexDirection:"column", overflowY:"auto", padding:"0 8px 24px" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <MusifyLogo size={28} />
-            <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
-          </div>
-          <button className="icon-btn" onClick={onClose}><Ico.X /></button>
+    <div className={`song-row${isActive?" active":""}`}
+      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
+      onDoubleClick={onPlay}>
+      <div className="num">
+        {hovered||isActive ? (
+          <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":"#fff", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
+            {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
+          </button>
+        ) : isActive ? <span style={{color:"#e8435a"}}>{">"}</span> : <span>{index+1}</span>}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
+        <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:14, fontWeight:600, color:isActive?"#e8435a":"#f0f0f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.title}</div>
+          <div style={{ fontSize:12, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.artist}</div>
         </div>
-
-        {user ? (
-          <div style={{ margin:"0 8px 16px", background:"rgba(255,255,255,0.05)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 }}>
-              {user.displayName?.[0]?.toUpperCase() || "U"}
-            </div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:14, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.displayName || "User"}</div>
-              <div style={{ fontSize:11, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ margin:"0 8px 16px", display:"flex", gap:8 }}>
-            <button className="btn-primary" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Log in</button>
-            <button className="btn-outline" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Sign up</button>
-          </div>
-        )}
-
-        <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>{setView("home");onClose();}}>
-          <Ico.Home filled={view==="home"} /><span>Home</span>
+      </div>
+      <div className="album-col" style={{ fontSize:13, color:"#777", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.album}</div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+        <button className={`icon-btn${liked?" active":""}`} onClick={(e)=>{e.stopPropagation();onLike();}} style={{ opacity:hovered||liked?1:0, transition:"opacity .15s" }}>
+          <Ico.Heart filled={liked} />
         </button>
-        <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>{setView("search");onClose();}}>
-          <Ico.Search /><span>Search</span>
-        </button>
-        <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>{setView("library");onClose();}}>
-          <Ico.Library /><span>Your Library</span>
-        </button>
-
-        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
-
-        <div style={{ padding:"4px 14px 8px", fontSize:11, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</div>
-        {resolvePlaylists().map((pl) => (
-          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
-            <CoverArt cover={pl.cover} size={36} title={pl.name} radius={4} />
-            <span style={{ fontSize:13 }}>{pl.name}</span>
-          </button>
-        ))}
-        {user && (
-          <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>{setView("liked");onClose();}}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <Ico.Heart filled />
-            </div>
-            <span style={{ fontSize:13 }}>Liked Songs</span>
-          </button>
-        )}
-        {userPlaylists?.map((pl) => (
-          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0, fontWeight:700 }}>M</div>
-            <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
-          </button>
-        ))}
-        {user && (
-          <button className="sidebar-item" onClick={onCreatePlaylist}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"rgba(255,255,255,0.08)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Plus /></div>
-            <span style={{ fontSize:13 }}>New Playlist</span>
-          </button>
-        )}
-
-        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
-
-        <button className="sidebar-item" onClick={()=>{onOpenSettings();onClose();}}>
-          <Ico.Settings /><span>Settings</span>
-        </button>
-        {user && (
-          <button className="sidebar-item" onClick={()=>{onSignOut();onClose();}} style={{ color:"#e8435a" }}>
-            <Ico.LogOut /><span>Log out</span>
-          </button>
+        {duration > 0 && (
+          <span style={{ color:"#777", fontSize:12, minWidth:32, textAlign:"right", fontVariantNumeric:"tabular-nums", display:"flex", alignItems:"center", gap:3 }}>
+            <Ico.Clock />{formatTime(duration)}
+          </span>
         )}
       </div>
-    </>
-  );
-}
-
-function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings }) {
-  return (
-    <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>
-      <div style={{ padding:"8px 12px 20px", display:"flex", alignItems:"center", gap:8 }}>
-        <MusifyLogo size={30} />
-        <span style={{ fontWeight:800, fontSize:18, color:"#fff", letterSpacing:"-0.5px" }}>Musify</span>
-      </div>
-      <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>setView("home")}><Ico.Home filled={view==="home"} /><span>Home</span></button>
-      <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>setView("search")}><Ico.Search /><span>Search</span></button>
-      <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>setView("library")}><Ico.Library /><span>Your Library</span></button>
-      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
-      <div style={{ padding:"4px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:11, color:"#666", fontWeight:700, textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</span>
-        {user && <button className="icon-btn" onClick={onCreatePlaylist}><Ico.Plus /></button>}
-      </div>
-      {resolvePlaylists().map((pl) => (
-        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
-          <CoverArt cover={pl.cover} size={32} title={pl.name} radius={3} />
-          <span style={{ fontSize:13 }}>{pl.name}</span>
-        </button>
-      ))}
-      {user && (
-        <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>setView("liked")}>
-          <div style={{ width:32, height:32, borderRadius:3, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Heart filled /></div>
-          <span style={{ fontSize:13 }}>Liked Songs</span>
-        </button>
-      )}
-      {userPlaylists?.map((pl) => (
-        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
-          <div style={{ width:32, height:32, borderRadius:3, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0, fontWeight:700 }}>M</div>
-          <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
-        </button>
-      ))}
-      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
-      <button className="sidebar-item" onClick={onOpenSettings}><Ico.Settings /><span>Settings</span></button>
-      {user && <button className="sidebar-item" onClick={onSignOut} style={{ color:"#e8435a" }}><Ico.LogOut /><span>Log out</span></button>}
     </div>
   );
 }
@@ -882,6 +791,132 @@ function AuthView({ onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings }) {
+  if (!open) return null;
+  return (
+    <>
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:400 }} onClick={onClose} />
+      <div className="slide-in" style={{ position:"fixed", top:0, left:0, bottom:0, width:280, background:"#0d0d14", zIndex:401, display:"flex", flexDirection:"column", overflowY:"auto", padding:"0 8px 24px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <MusifyLogo size={28} />
+            <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
+          </div>
+          <button className="icon-btn" onClick={onClose}><Ico.X /></button>
+        </div>
+
+        {user ? (
+          <div style={{ margin:"0 8px 16px", background:"rgba(255,255,255,0.05)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 }}>
+              {user.displayName?.[0]?.toUpperCase() || "U"}
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.displayName || "User"}</div>
+              <div style={{ fontSize:11, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ margin:"0 8px 16px", display:"flex", gap:8 }}>
+            <button className="btn-primary" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Log in</button>
+            <button className="btn-outline" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Sign up</button>
+          </div>
+        )}
+
+        <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>{setView("home");onClose();}}>
+          <Ico.Home filled={view==="home"} /><span>Home</span>
+        </button>
+        <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>{setView("search");onClose();}}>
+          <Ico.Search /><span>Search</span>
+        </button>
+        <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>{setView("library");onClose();}}>
+          <Ico.Library /><span>Your Library</span>
+        </button>
+
+        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
+
+        <div style={{ padding:"4px 14px 8px", fontSize:11, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</div>
+        {resolvePlaylists().map((pl) => (
+          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
+            <CoverArt cover={pl.cover} size={36} title={pl.name} radius={4} />
+            <span style={{ fontSize:13 }}>{pl.name}</span>
+          </button>
+        ))}
+        {user && (
+          <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>{setView("liked");onClose();}}>
+            <div style={{ width:36, height:36, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <Ico.Heart filled />
+            </div>
+            <span style={{ fontSize:13 }}>Liked Songs</span>
+          </button>
+        )}
+        {userPlaylists?.map((pl) => (
+          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
+            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0, fontWeight:700 }}>M</div>
+            <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
+          </button>
+        ))}
+        {user && (
+          <button className="sidebar-item" onClick={onCreatePlaylist}>
+            <div style={{ width:36, height:36, borderRadius:4, background:"rgba(255,255,255,0.08)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Plus /></div>
+            <span style={{ fontSize:13 }}>New Playlist</span>
+          </button>
+        )}
+
+        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
+
+        <button className="sidebar-item" onClick={()=>{onOpenSettings();onClose();}}>
+          <Ico.Settings /><span>Settings</span>
+        </button>
+        {user && (
+          <button className="sidebar-item" onClick={()=>{onSignOut();onClose();}} style={{ color:"#e8435a" }}>
+            <Ico.LogOut /><span>Log out</span>
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings }) {
+  return (
+    <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>
+      <div style={{ padding:"8px 12px 20px", display:"flex", alignItems:"center", gap:8 }}>
+        <MusifyLogo size={30} />
+        <span style={{ fontWeight:800, fontSize:18, color:"#fff", letterSpacing:"-0.5px" }}>Musify</span>
+      </div>
+      <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>setView("home")}><Ico.Home filled={view==="home"} /><span>Home</span></button>
+      <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>setView("search")}><Ico.Search /><span>Search</span></button>
+      <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>setView("library")}><Ico.Library /><span>Your Library</span></button>
+      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
+      <div style={{ padding:"4px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <span style={{ fontSize:11, color:"#666", fontWeight:700, textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</span>
+        {user && <button className="icon-btn" onClick={onCreatePlaylist}><Ico.Plus /></button>}
+      </div>
+      {resolvePlaylists().map((pl) => (
+        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
+          <CoverArt cover={pl.cover} size={32} title={pl.name} radius={3} />
+          <span style={{ fontSize:13 }}>{pl.name}</span>
+        </button>
+      ))}
+      {user && (
+        <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>setView("liked")}>
+          <div style={{ width:32, height:32, borderRadius:3, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Heart filled /></div>
+          <span style={{ fontSize:13 }}>Liked Songs</span>
+        </button>
+      )}
+      {userPlaylists?.map((pl) => (
+        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
+          <div style={{ width:32, height:32, borderRadius:3, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0, fontWeight:700 }}>M</div>
+          <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
+        </button>
+      ))}
+      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
+      <button className="sidebar-item" onClick={onOpenSettings}><Ico.Settings /><span>Settings</span></button>
+      {user && <button className="sidebar-item" onClick={onSignOut} style={{ color:"#e8435a" }}><Ico.LogOut /><span>Log out</span></button>}
     </div>
   );
 }

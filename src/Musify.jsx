@@ -36,6 +36,14 @@ const SONGS = [
   { id: "5", title: "Uyiril Thodum", artist: "Sushin Shyam, Sooraj Santhosh, Anne Amie", album: "Kumbalangi Nights", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557117/%E0%B4%89%E0%B4%AF%E0%B4%BF%E0%B4%B0%E0%B4%BF%E0%B5%BD_%E0%B4%A4%E0%B5%8A%E0%B4%9F%E0%B5%81%E0%B4%82_Uyiril_Thodum_-_Kumbalangi_Nights_Official_Video_Song___Sooraj_Santhosh___Anne_Amie_ZKhOs_Pc_7s_tyqluu.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg" },
   { id: "6", title: "Darshana", artist: "Vineeth Sreenivasan", album: "Hridayam", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557122/Darshana_-_Official_Video_Song___Hridayam___Pranav___Darshana___Vineeth___Hesham___Merryland_epAFDEJImrU_hsyy47.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/ab67616d00001e029b8c8ab6e0a59493a5fa06c6_pi7ztc.jpg" },
   { id: "7", title: "Pavizha Mazha", artist: "K. S. Harisankar", album: "Athiran", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg" },
+  {
+    id: "381104drf",
+    title: "KAATTUCHEMBAKAM",
+    artist: "JAKES BEJOY",
+    album: "Pallichattambi",
+    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779856994/Pallichattambi_-_Kaattuchembakam_Video_Song__Tovino_Kayadu___Dijo_Jose__Jakes_Bejoy___Vishal_Mishra_kzpS-A3QJqE_wbzskr.mp3",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779857197/Kaattuchembakam-From-Pallichattambi-Malayalam-2026-20260212181402-500x500_1_j4dpbx.jpg",
+  },
 ].filter((s) => s.id && s.title && s.audioUrl);
 
 const PLAYLISTS = [
@@ -366,7 +374,7 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
   );
 }
 
-// ── PLAYBACK SETTINGS PANEL ──────────────────────────────────────────────────
+// ââ PLAYBACK SETTINGS PANEL ââââââââââââââââââââââââââââââââââââââââââââââââââ
 function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   const [sleepMin, setSleepMin] = useState(0);
   const row = (label, desc, key, type="toggle", options=null) => (
@@ -419,7 +427,7 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   );
 }
 
-// ── MOBILE SIDEBAR DRAWER ────────────────────────────────────────────────────
+// ââ MOBILE SIDEBAR DRAWER ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings }) {
   if (!open) return null;
   return (
@@ -511,7 +519,7 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
   );
 }
 
-// ── DESKTOP SIDEBAR ──────────────────────────────────────────────────────────
+// ââ DESKTOP SIDEBAR ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings }) {
   return (
     <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>

@@ -381,8 +381,8 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
           <div style={{ minWidth: 0, flex: 1, paddingRight: 16 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.title}</h2>
-            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.artist}</p>
+            <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow:"ellipsis" }}>{track?.title}</h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow:"ellipsis" }}>{track?.artist}</p>
           </div>
           <button onClick={onLike} style={{ background:"none", border:"none", color: liked ? "#e8435a" : "#fff", padding: 8, cursor:"pointer" }}>
             <Ico.Heart filled={liked} />
@@ -880,7 +880,7 @@ function TopBar({ user, onShowAuth, onSignOut, onMenuOpen }) {
       <div style={{ flex:1 }} />
       {user ? (
         <div style={{ position:"relative" }}>
-          <button onClick={()=>setOpen(!open)} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius0:500, padding:"5px 12px 5px 6px", cursor:"pointer", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
+          <button onClick={()=>setOpen(!open)} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:500, padding:"5px 12px 5px 6px", cursor:"pointer", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
             <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700 }}>
               {user.displayName?.[0]?.toUpperCase()||<Ico.User />}
             </div>

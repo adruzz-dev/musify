@@ -21,7 +21,6 @@ const firebaseConfig = {
   appId: "1:547789616528:web:5cf41596300d6dfa93ef15",
   measurementId: "G-PFQQE1K6HD"
 };
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -42,7 +41,6 @@ const SONGS = [
 const PLAYLISTS = [
   { id: "pl-1", name: "Malayalam Melodies", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779449356/artworks-X7VgPpOQzk6r1htx-1zjCOA-t500x500_fhil3r.jpg", songIds: ["1","2","3","4","5","6","7"] },
 ];
-
 const EQ_PRESETS = {
   Normal: [0, 0, 0],
   Rock: [5, -2, 5],
@@ -51,7 +49,6 @@ const EQ_PRESETS = {
   Classical: [4, -1, 2],
   BassBoost: [7, 1, -2],
 };
-
 function resolvePlaylists() {
   return PLAYLISTS.map((pl) => ({ ...pl, songs: pl.songIds.map((sid) => SONGS.find((s) => s.id === sid)).filter(Boolean) }));
 }
@@ -60,7 +57,6 @@ const getUserDoc = async (uid) => { const snap = await getDoc(doc(db,"users",uid
 const createUserDoc = async (uid, data) => { await setDoc(doc(db,"users",uid), { name: data.name||"", email: data.email||"", avatarUrl:"", playlists:[], likedSongs:[], createdAt: Date.now() }); };
 const saveUserLiked = async (uid, likedSongs) => updateDoc(doc(db,"users",uid), { likedSongs });
 const saveUserPlaylist = async (uid, playlist) => updateDoc(doc(db,"users",uid), { playlists: arrayUnion(playlist) });
-
 function formatTime(secs) {
   if (!secs || isNaN(secs)) return "0:00";
   const m = Math.floor(secs / 60), s = Math.floor(secs % 60);
@@ -98,7 +94,7 @@ function CoverArt({ cover, size=48, title, radius=6 }) {
   return cover ? (
     <img src={cover} alt={title} style={{ width:sz, height:sz, borderRadius:radius, objectFit:"cover", flexShrink:0, display:"block" }} />
   ) : (
-    <div style={{ width:sz, height:sz, borderRadius:radius, flexShrink:0, background:"linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:typeof size==="number"?Math.max(10,size*0.28):14, fontWeight:800, color:"rgba(255,255,255,0.9)" }}>
+    <div style={{ width:sz, height:sz, borderRadius:radius, flexShrink:0, background:"linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:typeof size==="number"?Math.max(10,size*0.28):14, fontNavgweight:800, color:"rgba(255,255,255,0.9)" }}>
       {initials}
     </div>
   );
@@ -221,7 +217,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const settingsRef = useRef(playbackSettings);
-
   useEffect(() => { settingsRef.current = playbackSettings; }, [playbackSettings]);
 
   useEffect(() => {
@@ -232,14 +227,12 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
       trebleFilterRef.current?.gain.setTargetAtTime(playbackSettings.treble, now, 0.1);
     }
   }, [playbackSettings.bass, playbackSettings.mid, playbackSettings.treble]);
-
   useEffect(() => {
     if (audioCtxRef.current && EQ_PRESETS[playbackSettings.eqPreset]) {
       const [b, m, t] = EQ_PRESETS[playbackSettings.eqPreset];
       onEqChange?.(b, m, t);
     }
   }, [playbackSettings.eqPreset]);
-
   useEffect(() => {
     const a = new Audio();
     a.crossOrigin = "anonymous";
@@ -254,9 +247,9 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
     const unlock = () => { if(unlockedRef.current) return; unlockedRef.current=true; if(audioCtxRef.current?.state==="suspended") audioCtxRef.current.resume(); };
     document.addEventListener("touchstart", unlock, { once:true });
     document.addEventListener("click", unlock, { once:true });
+    
     return () => { a.pause(); clearTimeout(sleepTimerRef.current); };
   }, []);
-
   const setupWebAudio = useCallback(() => {
     if (audioCtxRef.current) return;
     try {
@@ -294,7 +287,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
       treble.connect(ctx.destination);
     } catch(e) { console.warn("WebAudio failed:", e); }
   }, [volume]);
-
   const load = useCallback((url) => {
     const a = audioRef.current;
     if (!a) return Promise.resolve();
@@ -303,12 +295,10 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
     a.load();
     return a.play().then(() => { if(!audioCtxRef.current) setupWebAudio(); }).catch((err) => console.warn("Play failed:", err));
   }, [setupWebAudio]);
-
   const setSleepTimer = useCallback((minutes) => {
     clearTimeout(sleepTimerRef.current);
     if (minutes > 0) sleepTimerRef.current = setTimeout(() => audioRef.current?.pause(), minutes * 60 * 1000);
   }, []);
-
   return {
     progress, duration,
     volume: Math.round(volume * 100),
@@ -321,47 +311,29 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
   };
 }
 
-// ✅ FIXED: SongRow component added
 function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
   const duration = useSongDuration(song.audioUrl);
   return (
     <div className={`song-row${isActive ? " active" : ""}`} onClick={onPlay}>
       <div className="num">
-        {isActive && isPlaying ? (
-          <span style={{ color: "#e8435a" }}>▶</span>
-        ) : (
-          index + 1
-        )}
+        {isActive && isPlaying ? ( <span style={{ color: "#e8435a" }}>▶</span> ) : ( index + 1 )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
         <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
         <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontSize: 14, fontWeight: 600,
-            color: isActive ? "#e8435a" : "#f0f0f0",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-          }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: isActive ? "#e8435a" : "#f0f0f0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {song.title}
           </div>
-          <div style={{
-            fontSize: 12, color: "#888",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-          }}>
+          <div style={{ fontSize: 12, color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {song.artist}
           </div>
         </div>
       </div>
-      <div className="album-col" style={{
-        fontSize: 13, color: "#888",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-      }}>
+      <div className="album-col" style={{ fontSize: 13, color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {song.album}
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-        <button
-          className={`icon-btn${liked ? " active" : ""}`}
-          onClick={(e) => { e.stopPropagation(); onLike(); }}
-        >
+        <button className={`icon-btn${liked ? " active" : ""}`} onClick={(e) => { e.stopPropagation(); onLike(); }} >
           <Ico.Heart filled={liked} />
         </button>
         <span style={{ fontSize: 12, color: "#888", fontVariantNumeric: "tabular-nums", minWidth: 36, textAlign: "right" }}>
@@ -375,7 +347,6 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
 function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle, onExpand }) {
   const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
   const safeProgress = progress && isFinite(progress) ? progress : 0;
-  
   if (isMobile) {
     return (
       <div onClick={onExpand} style={{ position:"fixed", bottom:56, left:0, right:0, background:"#111118", borderTop:"1px solid rgba(255,255,255,0.06)", padding:"10px 16px", zIndex:200, cursor: "pointer" }}>
@@ -441,11 +412,9 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
 function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, shuffle, repeat, onShuffleToggle, onRepeatToggle, liked, onLike, onClose, onOpenSettings }) {
   const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
   const safeProgress = progress && isFinite(progress) ? progress : 0;
-
   return (
     <div className="slide-in" style={{ position: "fixed", inset: 0, zIndex: 999, background: "#111", display: "flex", flexDirection: "column", color: "#fff", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: -40, backgroundImage: `url(${track?.cover})`, backgroundSize: "cover", backgroundPosition: "center", filter: "blur(40px) brightness(0.35)", zIndex: 0 }} />
-
       <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", padding: "24px 24px 40px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 30 }}>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", padding: 0 }}><Ico.ChevronDown /></button>
@@ -454,21 +423,16 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
           </div>
           <button onClick={onOpenSettings} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", padding: 0 }}><Ico.MoreVertical /></button>
         </div>
-
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: 30 }}>
           <img src={track?.cover} alt={track?.title} style={{ width: "100%", maxWidth: 360, aspectRatio: "1/1", objectFit: "cover", borderRadius: 8, boxShadow: "0 16px 40px rgba(0,0,0,0.6)" }} />
         </div>
-
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
           <div style={{ minWidth: 0, flex: 1, paddingRight: 16 }}>
-            <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow:"ellipsis" }}>{track?.title}</h2>
+            <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow:"ellipsis" }}>{track?.title</h2>
             <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow:"ellipsis" }}>{track?.artist}</p>
           </div>
-          <button onClick={onLike} style={{ background:"none", border:"none", color: liked ? "#e8435a" : "#fff", padding: 8, cursor:"pointer" }}>
-            <Ico.Heart filled={liked} />
-          </button>
+          <button onClick={onLike} style={{ background:"none", border:"none", color: liked ? "#e8435a" : "#fff", padding: 8, cursor:"pointer" }}><Ico.Heart filled={liked} /></button>
         </div>
-
         <div style={{ marginBottom: 20 }}>
           <SeekBar progress={safeProgress} duration={safeDuration} onSeek={onSeek} style={{ height: 4, background: "rgba(255,255,255,0.2)" }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.6)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
@@ -476,23 +440,17 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
             <span>{formatTime(safeDuration)}</span>
           </div>
         </div>
-
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <button onClick={onShuffleToggle} style={{ background:"none", border:"none", color: shuffle ? "#e8435a" : "rgba(255,255,255,0.7)", cursor:"pointer" }}><Ico.Shuffle /></button>
           <button onClick={onPrev} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", transform: "scale(1.5)" }}><Ico.Prev /></button>
-          
           <button onClick={onToggle} style={{ width: 68, height: 68, borderRadius: "50%", background: "#fff", color: "#000", border: "none", display: "flex", alignItems: "center", justifyContent:"center", cursor:"pointer" }}>
-            <div style={{ transform: "scale(1.6)", display:"flex" }}>
-              {isPlaying ? <Ico.Pause /> : <Ico.Play />}
-            </div>
+            <div style={{ transform: "scale(1.6)", display:"flex" }}>{isPlaying ? <Ico.Pause /> : <Ico.Play />}</div>
           </button>
-          
           <button onClick={onNext} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", transform: "scale(1.5)" }}><Ico.Next /></button>
           <button onClick={onRepeatToggle} style={{ background:"none", border:"none", color: repeat !== "off" ? "#e8435a" : "rgba(255,255,255,0.7)", cursor:"pointer" }}>
             {repeat === "one" ? <Ico.RepeatOne /> : <Ico.Repeat />}
           </button>
         </div>
-
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, color: "rgba(255,255,255,0.7)" }}>
           <button style={{ background:"none", border:"none", color:"inherit", cursor:"pointer" }}><Ico.Cast /></button>
           <div style={{ display: "flex", gap: 24 }}>
@@ -515,8 +473,7 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
       </div>
       {type==="toggle" && <Toggle value={settings[key]} onChange={(v) => onChange(key, v)} />}
       {type==="select" && (
-        <select value={settings[key]} onChange={(e) => onChange(key, e.target.value)}
-          style={{ background:"#1a1a24", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, color:"#e8e8e8", padding:"6px 10px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
+        <select value={settings[key]} onChange={(e) => onChange(key, e.target.value)} style={{ background:"#1a1a24", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, color:"#e8e8e8", padding:"6px 10px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       )}
@@ -524,26 +481,14 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   );
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div className="fade-in" style={{ width:"100%", maxWidth:480, margin:"0 auto", background:"#111118", borderRadius:"16px 16px 0 0", padding:"24px 24px 40px", maxHeight:"80vh", overflowY:"auto" }}
-        onClick={e=>e.stopPropagation()}>
+      <div className="fade-in" style={{ width:"100%", maxWidth:480, margin:"0 auto", background:"#111118", borderRadius:"16px 16px 0 0", padding:"24px 24px 40px", maxHeight:"80vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
           <h2 style={{ fontSize:18, fontWeight:800, color:"#fff" }}>Playback Settings</h2>
           <button className="icon-btn" onClick={onClose}><Ico.X /></button>
         </div>
-
         {row("Shuffle", "Play songs in random order", "shuffle")}
-        {row("Repeat", "Loop playback mode", "repeat", "select", [
-          {value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}
-        ])}
-        {row("Equalizer Preset", "Choose frequency configuration", "eqPreset", "select", [
-          {value:"Normal",label:"Normal"},
-          {value:"Rock",label:"Rock"},
-          {value:"Pop",label:"Pop"},
-          {value:"Jazz",label:"Jazz"},
-          {value:"Classical",label:"Classical"},
-          {value:"BassBoost",label:"Bass Boost"}
-        ])}
-
+        {row("Repeat", "Loop playback mode", "repeat", "select", [{value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}])}
+        {row("Equalizer Preset", "Choose frequency configuration", "eqPreset", "select", [{value:"Normal",label:"Normal"},{value:"Rock",label:"Rock"},{value:"Pop",label:"Pop"},{value:"Jazz",label:"Jazz"},{value:"Classical",label:"Classical"},{value:"BassBoost",label:"Bass Boost"}])}
         <div style={{ padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 16 }}>Manual Equalizer Tuning</div>
           <div className="eq-slider-container">
@@ -564,20 +509,15 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
             </div>
           </div>
         </div>
-
         {row("Crossfade", "Smooth transition between songs", "crossfade")}
         {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
         {row("High Quality Audio", "Stream at highest quality (uses more data)", "hqAudio")}
-
         <div style={{ padding:"14px 0" }}>
           <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0", marginBottom:6 }}>Sleep Timer</div>
           <div style={{ fontSize:12, color:"#777", marginBottom:12 }}>Automatically pause after a set time</div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             {[0,15,30,45,60,90].map(m => (
-              <button key={m} onClick={() => { setSleepMin(m); onSleepTimer(m); }}
-                style={{ background: sleepMin===m?"#e8435a":"rgba(255,255,255,0.08)", border:"none", borderRadius:500, padding:"8px 16px", color: sleepMin===m?"#fff":"#aaa", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
-                {m===0?"Off":`${m} min`}
-              </button>
+              <button key={m} onClick={() => { setSleepMin(m); onSleepTimer(m); }} style={{ background: sleepMin===m?"#e8435a":"rgba(255,255,255,0.08)", border:"none", borderRadius:500, padding:"8px 16px", color: sleepMin===m?"#fff":"#aaa", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>{m===0?"Off":`${m} min`}</button>
             ))}
           </div>
         </div>
@@ -599,12 +539,9 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
           </div>
           <button className="icon-btn" onClick={onClose}><Ico.X /></button>
         </div>
-
         {user ? (
           <div style={{ margin:"0 8px 16px", background:"rgba(255,255,255,0.05)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 }}>
-              {user.displayName?.[0]?.toUpperCase() || "U"}
-            </div>
+            <div style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 }}>{user.displayName?.[0]?.toUpperCase() || "U"}</div>
             <div style={{ minWidth:0 }}>
               <div style={{ fontSize:14, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.displayName || "User"}</div>
               <div style={{ fontSize:11, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
@@ -616,19 +553,10 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
             <button className="btn-outline" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Sign up</button>
           </div>
         )}
-
-        <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>{setView("home");onClose();}}>
-          <Ico.Home filled={view==="home"} /><span>Home</span>
-        </button>
-        <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>{setView("search");onClose();}}>
-          <Ico.Search /><span>Search</span>
-        </button>
-        <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>{setView("library");onClose();}}>
-          <Ico.Library /><span>Your Library</span>
-        </button>
-
+        <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>{setView("home");onClose();}}><Ico.Home filled={view==="home"} /><span>Home</span></button>
+        <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>{setView("search");onClose();}}><Ico.Search /><span>Search</span></button>
+        <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>{setView("library");onClose();}}><Ico.Library /><span>Your Library</span></button>
         <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
-
         <div style={{ padding:"4px 14px 8px", fontSize:11, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</div>
         {resolvePlaylists().map((pl) => (
           <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
@@ -638,9 +566,7 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
         ))}
         {user && (
           <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>{setView("liked");onClose();}}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <Ico.Heart filled />
-            </div>
+            <div style={{ width:36, height:36, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Heart filled /></div>
             <span style={{ fontSize:13 }}>Liked Songs</span>
           </button>
         )}
@@ -656,17 +582,9 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
             <span style={{ fontSize:13 }}>New Playlist</span>
           </button>
         )}
-
         <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
-
-        <button className="sidebar-item" onClick={()=>{onOpenSettings();onClose();}}>
-          <Ico.Settings /><span>Settings</span>
-        </button>
-        {user && (
-          <button className="sidebar-item" onClick={()=>{onSignOut();onClose();}} style={{ color:"#e8435a" }}>
-            <Ico.LogOut /><span>Log out</span>
-          </button>
-        )}
+        <button className="sidebar-item" onClick={()=>{onOpenSettings();onClose();}}><Ico.Settings /><span>Settings</span></button>
+        {user && <button className="sidebar-item" onClick={()=>{onSignOut();onClose();}} style={{ color:"#e8435a" }}><Ico.LogOut /><span>Log out</span></button>}
       </div>
     </>
   );
@@ -720,10 +638,8 @@ function HomeView({ user, onSelectPlaylist, currentTrack, onPlay, isPlaying, lik
         <h1 style={{ fontSize:26, fontWeight:800, color:"#fff", marginBottom:24 }}>{getGreeting()}{user?`, ${user.displayName?.split(" ")[0]||""}`:""}!</h1>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }}>
           {playlists.map((pl) => (
-            <div key={pl.id} onClick={()=>onSelectPlaylist(pl)}
-              style={{ display:"flex", alignItems:"center", gap:0, background:"rgba(255,255,255,0.08)", borderRadius:6, overflow:"hidden", cursor:"pointer", transition:"background .15s" }}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"}
-              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.08)"}>
+            <div key={pl.id} onClick={()=>onSelectPlaylist(pl)} style={{ display:"flex", alignItems:"center", gap:0, background:"rgba(255,255,255,0.08)", borderRadius:6, overflow:"hidden", cursor:"pointer", transition:"background .15s" }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.15)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.08)"}>
               <CoverArt cover={pl.cover} size={56} title={pl.name} radius={0} />
               <span style={{ padding:"0 16px", fontSize:14, fontWeight:700, color:"#fff" }}>{pl.name}</span>
             </div>
@@ -740,10 +656,7 @@ function HomeView({ user, onSelectPlaylist, currentTrack, onPlay, isPlaying, lik
         </div>
         <div style={{ height:1, background:"rgba(255,255,255,0.06)", marginBottom:8 }} />
         {SONGS.map((song,i) => (
-          <SongRow key={song.id} song={song} index={i}
-            isActive={currentTrack?.id===song.id} isPlaying={isPlaying}
-            onPlay={()=>onPlay(song,SONGS,i)}
-            liked={likedSongs.includes(song.id)} onLike={()=>onLike(song.id)} />
+          <SongRow key={song.id} song={song} index={i} isActive={currentTrack?.id===song.id} isPlaying={isPlaying} onPlay={()=>onPlay(song,SONGS,i)} liked={likedSongs.includes(song.id)} onLike={()=>onLike(song.id)} />
         ))}
       </div>
     </div>
@@ -762,10 +675,7 @@ function SearchView({ currentTrack, isPlaying, onPlay, likedSongs, onLike }) {
       </div>
       {q ? results.length>0 ? (
         results.map((song,i) => (
-          <SongRow key={song.id} song={song} index={i}
-            isActive={currentTrack?.id===song.id} isPlaying={isPlaying}
-            onPlay={()=>onPlay(song,results,i)}
-            liked={likedSongs.includes(song.id)} onLike={()=>onLike(song.id)} />
+          <SongRow key={song.id} song={song} index={i} isActive={currentTrack?.id===song.id} isPlaying={isPlaying} onPlay={()=>onPlay(song,results,i)} liked={likedSongs.includes(song.id)} onLike={()=>onLike(song.id)} />
         ))
       ) : (
         <div style={{ color:"#888", textAlign:"center", marginTop:60, fontSize:15 }}>No results for "<strong style={{color:"#ccc"}}>{q}</strong>"</div>
@@ -797,10 +707,7 @@ function PlaylistView({ playlist, currentTrack, isPlaying, onPlay, likedSongs, o
         </div>
         <div style={{ height:1, background:"rgba(255,255,255,0.06)", marginBottom:8 }} />
         {songs.map((song,i) => (
-          <SongRow key={song.id} song={song} index={i}
-            isActive={currentTrack?.id===song.id} isPlaying={isPlaying}
-            onPlay={()=>onPlay(song,songs,i)}
-            liked={likedSongs.includes(song.id)} onLike={()=>onLike(song.id)} />
+          <SongRow key={song.id} song={song} index={i} isActive={currentTrack?.id===song.id} isPlaying={isPlaying} onPlay={()=>onPlay(song,songs,i)} liked={likedSongs.includes(song.id)} onLike={()=>onLike(song.id)} />
         ))}
       </div>
     </div>
@@ -813,9 +720,7 @@ function LikedView({ likedSongs, currentTrack, isPlaying, onPlay, onLike }) {
     <div className="fade-in" style={{ paddingBottom:120 }}>
       <div style={{ padding:"48px 32px 32px", background:"linear-gradient(180deg,rgba(232,67,90,0.3) 0%,transparent 100%)", display:"flex", alignItems:"flex-end", gap:28 }}>
         <div style={{ width:180, height:180, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 24px rgba(0,0,0,0.5)", flexShrink:0 }}>
-           <div style={{ transform: "scale(4)" }}>
-             <Ico.Heart filled={true} />
-           </div>
+           <div style={{ transform: "scale(4)" }}><Ico.Heart filled={true} /></div>
         </div>
         <div>
           <div style={{ fontSize:11, fontWeight:700, color:"#ccc", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:8 }}>Playlist</div>
@@ -827,10 +732,7 @@ function LikedView({ likedSongs, currentTrack, isPlaying, onPlay, onLike }) {
         {songs.length===0 ? (
           <div style={{ textAlign:"center", color:"#888", padding:"60px 0", fontSize:14 }}>Songs you like will appear here.</div>
         ) : songs.map((song,i) => (
-          <SongRow key={song.id} song={song} index={i}
-            isActive={currentTrack?.id===song.id} isPlaying={isPlaying}
-            onPlay={()=>onPlay(song,songs,i)}
-            liked onLike={()=>onLike(song.id)} />
+          <SongRow key={song.id} song={song} index={i} isActive={currentTrack?.id===song.id} isPlaying={isPlaying} onPlay={()=>onPlay(song,songs,i)} liked onLike={()=>onLike(song.id)} />
         ))}
       </div>
     </div>
@@ -908,9 +810,7 @@ function AuthView({ onClose }) {
           <MusifyLogo size={44} style={{ margin: "0 auto 12px" }} />
           <h2 style={{ fontSize:22, fontWeight:800, color:"#fff" }}>{mode==="login"?"Log in to Musify":"Sign up for Musify"}</h2>
         </div>
-        <button onClick={handleGoogle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:500, padding:"11px 0", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:20, fontFamily:"inherit" }}>
-          <Ico.Google /> Continue with Google
-        </button>
+        <button onClick={handleGoogle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.15)", borderRadius:500, padding:"11px 0", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", marginBottom:20, fontFamily:"inherit" }}><Ico.Google /> Continue with Google</button>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
           <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.1)" }} />
           <span style={{ color:"#888", fontSize:12 }}>or</span>
@@ -921,15 +821,11 @@ function AuthView({ onClose }) {
           <input className="input-field" placeholder="Email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} />
           <input className="input-field" placeholder="Password" type="password" value={pass} onChange={(e)=>setPass(e.target.value)} />
           {err && <div style={{ color:"#e8435a", fontSize:12, padding:"8px 12px", background:"rgba(232,67,90,0.1)", borderRadius:6 }}>{err}</div>}
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading} style={{ width:"100%", marginTop:4 }}>
-            {loading?"...":mode==="login"?"Log In":"Sign Up"}
-          </button>
+          <button className="btn-primary" onClick={handleSubmit} disabled={loading} style={{ width:"100%", marginTop:4 }}>{loading?"...":mode==="login"?"Log In":"Sign Up"}</button>
         </div>
         <div style={{ textAlign:"center", marginTop:20, fontSize:13, color:"#888" }}>
           {mode==="login"?"Don't have an account? ":"Already have an account? "}
-          <button onClick={()=>setMode(mode==="login"?"signup":"login")} style={{ background:"none", border:"none", color:"#e8435a", cursor:"pointer", fontSize:13, fontWeight:700 }}>
-            {mode==="login"?"Sign up":"Log in"}
-          </button>
+          <button onClick={()=>setMode(mode==="login"?"signup":"login")} style={{ background:"none", border:"none", color:"#e8435a", cursor:"pointer", fontSize:13, fontWeight:700 }}>{mode==="login"?"Sign up":"Log in"}</button>
         </div>
       </div>
     </div>
@@ -940,24 +836,18 @@ function TopBar({ user, onShowAuth, onSignOut, onMenuOpen }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ height:60, background:"rgba(10,10,15,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", flexShrink:0, borderBottom:"1px solid rgba(255,255,255,0.04)", position:"sticky", top:0, zIndex:100 }}>
-      {onMenuOpen && (
-        <button className="icon-btn" onClick={onMenuOpen} style={{ color:"#aaa" }}><Ico.Menu /></button>
-      )}
+      {onMenuOpen && ( <button className="icon-btn" onClick={onMenuOpen} style={{ color:"#aaa" }}><Ico.Menu /></button> )}
       <div style={{ flex:1 }} />
       {user ? (
         <div style={{ position:"relative" }}>
           <button onClick={()=>setOpen(!open)} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:500, padding:"5px 12px 5px 6px", cursor:"pointer", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700 }}>
-              {user.displayName?.[0]?.toUpperCase()||<Ico.User />}
-            </div>
+            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700 }}>{user.displayName?.[0]?.toUpperCase()||<Ico.User />}</div>
             {user.displayName?.split(" ")[0]||"Profile"}
           </button>
           {open && (
             <div style={{ position:"absolute", top:"calc(100% + 8px)", right:0, background:"#1a1a24", borderRadius:8, padding:6, minWidth:160, boxShadow:"0 8px 24px rgba(0,0,0,0.5)", zIndex:200 }}>
               {["Log out"].map((label) => (
-                <button key={label} onClick={()=>{onSignOut();setOpen(false);}} style={{ width:"100%", background:"none", border:"none", color:"#e8e8e8", padding:"9px 12px", borderRadius:4, cursor:"pointer", fontSize:14, textAlign:"left", fontFamily:"inherit" }}
-                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
-                  onMouseLeave={e=>e.currentTarget.style.background="none"}>{label}</button>
+                <button key={label} onClick={()=>{onSignOut();setOpen(false);}} style={{ width:"100%", background:"none", border:"none", color:"#e8e8e8", padding:"9px 12px", borderRadius:4, cursor:"pointer", fontSize:14, textAlign:"left", fontFamily:"inherit" }} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"} onMouseLeave={e=>e.currentTarget.style.background="none"}>{label}</button>
               ))}
             </div>
           )}
@@ -973,11 +863,7 @@ function TopBar({ user, onShowAuth, onSignOut, onMenuOpen }) {
 }
 
 function MobileNav({ view, setView }) {
-  const items = [
-    { id:"home", label:"Home", Icon:Ico.Home },
-    { id:"search", label:"Search", Icon:Ico.Search },
-    { id:"library", label:"Library", Icon:Ico.Library },
-  ];
+  const items = [ { id:"home", label:"Home", Icon:Ico.Home }, { id:"search", label:"Search", Icon:Ico.Search }, { id:"library", label:"Library", Icon:Ico.Library } ];
   return (
     <div style={{ position:"fixed", bottom:0, left:0, right:0, height:56, background:"#0d0d14", borderTop:"1px solid rgba(255,255,255,0.06)", display:"flex", zIndex:300 }}>
       {items.map(({id,label,Icon})=>(
@@ -996,7 +882,7 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(false);
-  const [fullPlayerOpen, setFullPlayerOpen] = useState(false); 
+  const [fullPlayerOpen, setFullPlayerOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -1005,12 +891,9 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState("off");
-  
   const [pbSettings, setPbSettings] = useState({ shuffle:false, repeat:"off", crossfade:false, normalize:false, hqAudio:false, sleepTimer:0, eqPreset: "Normal", bass: 0, mid: 0, treble: 0 });
-
   const likedSongs = userData?.likedSongs || [];
   const userPlaylists = userData?.playlists || [];
-
   const handleEnded = useCallback(() => {
     if (repeat==="one") { player.seek(0); player.play(); return; }
     const next = queueIdx+1;
@@ -1018,11 +901,9 @@ export default function App() {
     else if (repeat==="all") { setQueueIdx(0); setCurrentTrack(queue[0]); }
     else setIsPlaying(false);
   }, [repeat,queueIdx,queue]);
-
   const handleManualEqChange = useCallback((b, m, t) => {
     setPbSettings(prev => ({ ...prev, bass: b, mid: m, treble: t }));
   }, []);
-
   const player = useAudioPlayer(handleEnded, setIsPlaying, pbSettings, handleManualEqChange);
 
   useEffect(() => { if(currentTrack) player.load(currentTrack.audioUrl); }, [currentTrack]);
@@ -1037,7 +918,6 @@ export default function App() {
     const newIdx = shuffle ? list.findIndex((s)=>s.id===song.id) : idx;
     setQueue(list); setQueueIdx(newIdx>=0?newIdx:0); setCurrentTrack(song);
   },[shuffle]);
-
   const togglePlay = () => { if(isPlaying) player.pause(); else player.play(); };
   const goNext = () => { const n=queueIdx+1; if(n<queue.length){setQueueIdx(n);setCurrentTrack(queue[n]);}else if(repeat==="all"){setQueueIdx(0);setCurrentTrack(queue[0]);} };
   const goPrev = () => { if(player.progress>3){player.seek(0);return;} const p=queueIdx-1; if(p>=0){setQueueIdx(p);setCurrentTrack(queue[p]);} };
@@ -1047,7 +927,6 @@ export default function App() {
   const handleSelectPlaylist = (pl)=>{ setSelectedPlaylist(pl); setView("playlist"); };
   const handleSignOut = async()=>{ await signOut(auth); setUser(null); setUserData(null); };
   const handlePbChange = (key,val)=>{ setPbSettings(prev=>({...prev,[key]:val})); if(key==="shuffle") setShuffle(val); if(key==="repeat") setRepeat(val); };
-
   const renderMain = () => {
     if(view==="admin") return <AdminPanel />;
     if(view==="playlist"&&selectedPlaylist) return <PlaylistView playlist={selectedPlaylist} currentTrack={currentTrack} isPlaying={isPlaying} onPlay={playSong} likedSongs={likedSongs} onLike={toggleLike} />;
@@ -1056,7 +935,6 @@ export default function App() {
     if(view==="library") return <LibraryView user={user} userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylist} onShowAuth={()=>setShowAuth(true)} />;
     return <HomeView user={user} onSelectPlaylist={handleSelectPlaylist} currentTrack={currentTrack} onPlay={playSong} isPlaying={isPlaying} likedSongs={likedSongs} onLike={toggleLike} />;
   };
-
   return (
     <>
       <GlobalStyles />
@@ -1078,67 +956,18 @@ export default function App() {
                 <MusifyLogo size={26} />
                 <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
               </div>
-              {user ? (
-                <div style={{ width:32, height:32, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700 }}>
-                  {user.displayName?.[0]?.toUpperCase()||"U"}
-                </div>
-              ) : (
-                <button className="btn-primary" onClick={()=>setShowAuth(true)} style={{ padding:"6px 14px", fontSize:12 }}>Log in</button>
-              )}
+              {user ? ( <div style={{ width:32, height:32, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700 }}>{user.displayName?.[0]?.toUpperCase()||"U"}</div> ) : ( <button className="btn-primary" onClick={()=>setShowAuth(true)} style={{ padding:"6px 14px", fontSize:12 }}>Log in</button> )}
             </div>
             {renderMain()}
           </div>
         )}
       </div>
 
-      <PlayerBar track={currentTrack} isPlaying={isPlaying} onToggle={togglePlay}
-        progress={player.progress} duration={player.duration}
-        onSeek={player.seek} onNext={goNext} onPrev={goPrev}
-        volume={player.volume} onVolume={player.setVol}
-        liked={currentTrack?likedSongs.includes(currentTrack.id):false}
-        onLike={()=>currentTrack&&toggleLike(currentTrack.id)}
-        isMobile={isMobile} shuffle={shuffle} repeat={repeat}
-        onShuffleToggle={()=>setShuffle(s=>!s)}
-        onRepeatToggle={()=>setRepeat(r=>r==="off"?"all":r==="all"?"one":"off")} 
-        onExpand={() => setFullPlayerOpen(true)}
-      />
-
-      {isMobile && fullPlayerOpen && (
-        <FullScreenPlayer 
-          track={currentTrack} isPlaying={isPlaying} onToggle={togglePlay}
-          progress={player.progress} duration={player.duration} onSeek={player.seek}
-          onNext={goNext} onPrev={goPrev} shuffle={shuffle} repeat={repeat}
-          onShuffleToggle={()=>setShuffle(s=>!s)}
-          onRepeatToggle={()=>setRepeat(r=>r==="off"?"all":r==="all"?"one":"off")}
-          liked={currentTrack?likedSongs.includes(currentTrack.id):false}
-          onLike={()=>currentTrack&&toggleLike(currentTrack.id)}
-          onClose={() => setFullPlayerOpen(false)}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-      )}
-
+      <PlayerBar track={currentTrack} isPlaying={isPlaying} onToggle={togglePlay} progress={player.progress} duration={player.duration} onSeek={player.seek} onNext={goNext} onPrev={goPrev} volume={player.volume} onVolume={player.setVol} liked={currentTrack?likedSongs.includes(currentTrack.id):false} onLike={()=>currentTrack&&toggleLike(currentTrack.id)} isMobile={isMobile} shuffle={shuffle} repeat={repeat} onShuffleToggle={()=>setShuffle(s=>!s)} onRepeatToggle={()=>setRepeat(r=>r==="off"?"all":r==="all"?"one":"off")} onExpand={() => setFullPlayerOpen(true)} />
+      {isMobile && fullPlayerOpen && ( <FullScreenPlayer track={currentTrack} isPlaying={isPlaying} onToggle={togglePlay} progress={player.progress} duration={player.duration} onSeek={player.seek} onNext={goNext} onPrev={goPrev} shuffle={shuffle} repeat={repeat} onShuffleToggle={()=>setShuffle(s=>!s)} onRepeatToggle={()=>setRepeat(r=>r==="off"?"all":r==="all"?"one":"off")} liked={currentTrack?likedSongs.includes(currentTrack.id):false} onLike={()=>currentTrack&&toggleLike(currentTrack.id)} onClose={() => setFullPlayerOpen(false)} onOpenSettings={() => setShowSettings(true)} /> )}
       {isMobile && <MobileNav view={view} setView={setView} />}
-
-      <MobileSidebar
-        open={mobileSidebar} onClose={()=>setMobileSidebar(false)}
-        view={view} setView={setView} user={user}
-        userPlaylists={userPlaylists}
-        onCreatePlaylist={handleCreatePlaylist}
-        onSelectPlaylist={handleSelectPlaylist}
-        onShowAuth={()=>setShowAuth(true)}
-        onSignOut={handleSignOut}
-        onOpenSettings={()=>setShowSettings(true)}
-      />
-
-      {showSettings && (
-        <PlaybackSettings
-          settings={pbSettings}
-          onChange={handlePbChange}
-          onSleepTimer={player.setSleepTimer}
-          onClose={()=>setShowSettings(false)}
-        />
-      )}
-
+      <MobileSidebar open={mobileSidebar} onClose={()=>setMobileSidebar(false)} view={view} setView={setView} user={user} userPlaylists={userPlaylists} onCreatePlaylist={handleCreatePlaylist} onSelectPlaylist={handleSelectPlaylist} onShowAuth={()=>setShowAuth(true)} onSignOut={handleSignOut} onOpenSettings={()=>setShowSettings(true)} />
+      {showSettings && ( <PlaybackSettings settings={pbSettings} onChange={handlePbChange} onSleepTimer={player.setSleepTimer} onClose={()=>setShowSettings(false)} /> )}
       {showAuth && <AuthView onClose={()=>setShowAuth(false)} />}
     </>
   );

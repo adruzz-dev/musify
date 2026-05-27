@@ -40,6 +40,12 @@ const SONGS = [
 
 const PLAYLISTS = [
   { id: "pl-1", name: "Malayalam Melodies", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779449356/artworks-X7VgPpOQzk6r1htx-1zjCOA-t500x500_fhil3r.jpg", songIds: ["1","2","3","4","5","6","7"] },
+  {
+    id: "pl-492827jn5",
+    name: "Malayalam melodies",
+    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779863252/file_0000000031547207a74624bf3321b3b2_gtgz5a.png",
+    songIds: [],
+  },
 ];
 const EQ_PRESETS = {
   Normal: [0, 0, 0],
@@ -316,7 +322,7 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
   return (
     <div className={`song-row${isActive ? " active" : ""}`} onClick={onPlay}>
       <div className="num">
-        {isActive && isPlaying ? ( <span style={{ color: "#e8435a" }}>▶</span> ) : ( index + 1 )}
+        {isActive && isPlaying ? ( <span style={{ color: "#e8435a" }}>â¶</span> ) : ( index + 1 )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
         <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />

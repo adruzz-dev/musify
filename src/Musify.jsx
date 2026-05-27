@@ -92,6 +92,19 @@ function useSongDuration(audioUrl) {
   return dur;
 }
 
+// Fixed missing CoverArt Definition inside the source tree
+function CoverArt({ cover, size=48, title, radius=6 }) {
+  const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "M";
+  const sz = typeof size==="number" ? size : "100%";
+  return cover ? (
+    <img src={cover} alt={title} style={{ width:sz, height:sz, borderRadius:radius, objectFit:"cover", flexShrink:0, display:"block" }} />
+  ) : (
+    <div style={{ width:sz, height:sz, borderRadius:radius, flexShrink:0, background:"linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:typeof size==="number"?Math.max(10,size*0.28):14, fontWeight:800, color:"rgba(255,255,255,0.9)" }}>
+      {initials}
+    </div>
+  );
+}
+
 function MusifyLogo({ size = 32, style = {} }) {
   return (
     <div style={{ width: size, height: size, borderRadius: "22%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "#000", border: "1px solid rgba(255,50,50,0.2)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", ...style }}>
@@ -116,7 +129,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
 
   useEffect(() => { settingsRef.current = playbackSettings; }, [playbackSettings]);
 
-  // Apply Equalizer adjustments instantly
   useEffect(() => {
     if (audioCtxRef.current) {
       const now = audioCtxRef.current.currentTime;
@@ -126,7 +138,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
     }
   }, [playbackSettings.bass, playbackSettings.mid, playbackSettings.treble]);
 
-  // Watch for overall preset clicks
   useEffect(() => {
     if (audioCtxRef.current && EQ_PRESETS[playbackSettings.eqPreset]) {
       const [b, m, t] = EQ_PRESETS[playbackSettings.eqPreset];
@@ -162,7 +173,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
       gainRef.current = gain;
       gain.gain.value = volume;
 
-      // 3-Band Parametric Equalizer Nodes
       const bass = ctx.createBiquadFilter();
       bass.type = "lowshelf";
       bass.frequency.value = 200;
@@ -182,7 +192,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
       treble.gain.value = settingsRef.current.treble;
       trebleFilterRef.current = treble;
 
-      // Connect Chain: Source -> Gain -> Bass -> Mid -> Treble -> Destination
       src.connect(gain);
       gain.connect(bass);
       bass.connect(mid);
@@ -284,9 +293,11 @@ const GlobalStyles = () => (
     .fade-in { animation:fadeIn .25s ease; }
     @keyframes slideIn { from{transform:translateY(100%)} to{transform:translateY(0)} }
     .slide-in { animation:slideIn .3s cubic-bezier(0.2, 0.8, 0.2, 1); }
-    .eq-slider-container { display: flex; flexDirection: column; gap: 4px; flex: 1; }
-    .eq-slider-row { display: flex; alignItems: center; gap: 12px; color: #ccc; fontSize: 13px; }
-    .eq-slider { flex: 1; accentColor: #e8435a; background: rgba(255,255,255,0.1); height: 4px; borderRadius: 2px; outline: none; }
+    .eq-slider-container { display: flex; flex-direction: column; gap: 12px; padding: 6px 0; }
+    .eq-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #f0f0f0; font-size: 14px; }
+    .eq-label { width: 56px; font-weight: 500; color: rgba(255,255,255,0.6); }
+    .eq-slider { flex: 1; accent-color: #e8435a; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; outline: none; cursor: pointer; }
+    .eq-value { width: 44px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; }
     @media (max-width:768px) { .song-row { grid-template-columns:28px 1fr 52px; } .song-row .album-col { display:none; } }
   `}</style>
 );
@@ -444,42 +455,6 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
   );
 }
 
-function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
-  const [hovered, setHovered] = useState(false);
-  const duration = useSongDuration(song.audioUrl);
-  return (
-    <div className={`song-row${isActive?" active":""}`}
-      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
-      onDoubleClick={onPlay}>
-      <div className="num">
-        {hovered||isActive ? (
-          <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":"#fff", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-            {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
-          </button>
-        ) : isActive ? <span style={{color:"#e8435a"}}>{">"}</span> : <span>{index+1}</span>}
-      </div>
-      <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
-        <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:14, fontWeight:600, color:isActive?"#e8435a":"#f0f0f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.title}</div>
-          <div style={{ fontSize:12, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.artist}</div>
-        </div>
-      </div>
-      <div className="album-col" style={{ fontSize:13, color:"#777", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.album}</div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
-        <button className={`icon-btn${liked?" active":""}`} onClick={(e)=>{e.stopPropagation();onLike();}} style={{ opacity:hovered||liked?1:0, transition:"opacity .15s" }}>
-          <Ico.Heart filled={liked} />
-        </button>
-        {duration > 0 && (
-          <span style={{ color:"#777", fontSize:12, minWidth:32, textAlign:"right", fontVariantNumeric:"tabular-nums", display:"flex", alignItems:"center", gap:3 }}>
-            <Ico.Clock />{formatTime(duration)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   const [sleepMin, setSleepMin] = useState(0);
   const row = (label, desc, key, type="toggle", options=null) => (
@@ -519,24 +494,23 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
           {value:"BassBoost",label:"Bass Boost"}
         ])}
 
-        {/* Manual Equalizer Frequency Adjustments */}
         <div style={{ padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 12 }}>Manual Equalizer Tuning</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 16 }}>Manual Equalizer Tuning</div>
+          <div className="eq-slider-container">
             <div className="eq-slider-row">
-              <span style={{ minWidth: 50 }}>Bass</span>
+              <span className="eq-label">Bass</span>
               <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.bass} onChange={(e) => onChange("bass", parseFloat(e.target.value))} />
-              <span style={{ minWidth: 32, textAlign: "right" }}>{settings.bass > 0 ? `+${settings.bass}` : settings.bass}dB</span>
+              <span className="eq-value">{settings.bass > 0 ? `+${settings.bass}` : settings.bass}dB</span>
             </div>
             <div className="eq-slider-row">
-              <span style={{ minWidth: 50 }}>Mid</span>
+              <span className="eq-label">Mid</span>
               <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.mid} onChange={(e) => onChange("mid", parseFloat(e.target.value))} />
-              <span style={{ minWidth: 32, textAlign: "right" }}>{settings.mid > 0 ? `+${settings.mid}` : settings.mid}dB</span>
+              <span className="eq-value">{settings.mid > 0 ? `+${settings.mid}` : settings.mid}dB</span>
             </div>
             <div className="eq-slider-row">
-              <span style={{ minWidth: 50 }}>Treble</span>
+              <span className="eq-label">Treble</span>
               <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.treble} onChange={(e) => onChange("treble", parseFloat(e.target.value))} />
-              <span style={{ minWidth: 32, textAlign: "right" }}>{settings.treble > 0 ? `+${settings.treble}` : settings.treble}dB</span>
+              <span className="eq-value">{settings.treble > 0 ? `+${settings.treble}` : settings.treble}dB</span>
             </div>
           </div>
         </div>
@@ -982,7 +956,6 @@ export default function App() {
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState("off");
   
-  // Equalizer adjustments state values added to settings object
   const [pbSettings, setPbSettings] = useState({ shuffle:false, repeat:"off", crossfade:false, normalize:false, hqAudio:false, sleepTimer:0, eqPreset: "Normal", bass: 0, mid: 0, treble: 0 });
 
   const likedSongs = userData?.likedSongs || [];

@@ -109,7 +109,7 @@ function CoverArt({ cover, size=48, title, radius=6 }) {
 function MusifyLogo({ size = 32, style = {} }) {
   return (
     <div style={{ width: size, height: size, borderRadius: "22%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "#000", border: "1px solid rgba(255,50,50,0.2)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", ...style }}>
-      <img src="https://res.cloudinary.com/dasnicvlp/image/upload/v1779857197/1000081221.png" alt="Musify Logo" style={{ width: "105%", height: "105%", objectFit: "cover" }} />
+      <img src="https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779863252/file_0000000031547207a74624bf3321b3b2_gtgz5a.png" alt="Musify Logo" style={{ width: "105%", height: "105%", objectFit: "cover" }} />
     </div>
   );
 }

@@ -104,7 +104,6 @@ function CoverArt({ cover, size=48, title, radius=6 }) {
   );
 }
 
-// Custom Glassmorphic Premium Play Button Logo Component
 function MusifyLogo({ size = 32, style = {} }) {
   return (
     <div style={{ width: size, height: size, borderRadius: "22%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "#000", border: "1px solid rgba(255,50,50,0.2)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", ...style }}>
@@ -206,123 +205,6 @@ function Toggle({ value, onChange }) {
     <button className="toggle-track" onClick={() => onChange(!value)} style={{ background: value ? "#e8435a" : "rgba(255,255,255,0.15)" }}>
       <div className="toggle-thumb" style={{ left: value ? "23px" : "3px" }} />
     </button>
-  );
-}
-
-function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
-  const [hovered, setHovered] = useState(false);
-  const duration = useSongDuration(song.audioUrl);
-  return (
-    <div className={`song-row${isActive?" active":""}`}
-      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
-      onDoubleClick={onPlay}>
-      <div className="num">
-        {hovered||isActive ? (
-          <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":"#fff", display:"flex", alignItems:"center", justifycontent:"center", padding:0 }}>
-            {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
-          </button>
-        ) : isActive ? <span style={{color:"#e8435a"}}>{">"}</span> : <span>{index+1}</span>}
-      </div>
-      <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
-        <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:14, fontWeight:600, color:isActive?"#e8435a":"#f0f0f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.title}</div>
-          <div style={{ fontSize:12, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.artist}</div>
-        </div>
-      </div>
-      <div className="album-col" style={{ fontSize:13, color:"#777", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.album}</div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
-        <button className={`icon-btn${liked?" active":""}`} onClick={(e)=>{e.stopPropagation();onLike();}} style={{ opacity:hovered||liked?1:0, transition:"opacity .15s" }}>
-          <Ico.Heart filled={liked} />
-        </button>
-        {duration > 0 && (
-          <span style={{ color:"#777", fontSize:12, minWidth:32, textAlign:"right", fontVariantNumeric:"tabular-nums", display:"flex", alignItems:"center", gap:3 }}>
-            <Ico.Clock />{formatTime(duration)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
-  const [sleepMin, setSleepMin] = useState(0);
-  const row = (label, desc, key, type="toggle", options=null) => (
-    <div key={key} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-      <div>
-        <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0" }}>{label}</div>
-        {desc && <div style={{ fontSize:12, color:"#777", marginTop:2 }}>{desc}</div>}
-      </div>
-      {type==="toggle" && <Toggle value={settings[key]} onChange={(v) => onChange(key, v)} />}
-      {type==="select" && (
-        <select value={settings[key]} onChange={(e) => onChange(key, e.target.value)}
-          style={{ background:"#1a1a24", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, color:"#e8e8e8", padding:"6px 10px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
-          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      )}
-    </div>
-  );
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div className="fade-in" style={{ width:"100%", maxWidth:480, margin:"0 auto", background:"#111118", borderRadius:"16px 16px 0 0", padding:"24px 24px 40px", maxHeight:"80vh", overflowY:"auto" }}
-        onClick={e=>e.stopPropagation()}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-          <h2 style={{ fontSize:18, fontWeight:800, color:"#fff" }}>Playback Settings</h2>
-          <button className="icon-btn" onClick={onClose}><Ico.X /></button>
-        </div>
-
-        {row("Shuffle", "Play songs in random order", "shuffle")}
-        {row("Repeat", "Loop playback mode", "repeat", "select", [
-          {value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}
-        ])}
-        {row("Equalizer Preset", "Choose frequency configuration", "eqPreset", "select", [
-          {value:"Normal",label:"Normal"},
-          {value:"Rock",label:"Rock"},
-          {value:"Pop",label:"Pop"},
-          {value:"Jazz",label:"Jazz"},
-          {value:"Classical",label:"Classical"},
-          {value:"BassBoost",label:"Bass Boost"}
-        ])}
-
-        <div style={{ padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 16 }}>Manual Equalizer Tuning</div>
-          <div className="eq-slider-container">
-            <div className="eq-slider-row">
-              <span className="eq-label">Bass</span>
-              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.bass} onChange={(e) => onChange("bass", parseFloat(e.target.value))} />
-              <span className="eq-value">{settings.bass > 0 ? `+${settings.bass}` : settings.bass}dB</span>
-            </div>
-            <div className="eq-slider-row">
-              <span className="eq-label">Mid</span>
-              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.mid} onChange={(e) => onChange("mid", parseFloat(e.target.value))} />
-              <span className="eq-value">{settings.mid > 0 ? `+${settings.mid}` : settings.mid}dB</span>
-            </div>
-            <div className="eq-slider-row">
-              <span className="eq-label">Treble</span>
-              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.treble} onChange={(e) => onChange("treble", parseFloat(e.target.value))} />
-              <span className="eq-value">{settings.treble > 0 ? `+${settings.treble}` : settings.treble}dB</span>
-            </div>
-          </div>
-        </div>
-
-        {row("Crossfade", "Smooth transition between songs", "crossfade")}
-        {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
-        {row("High Quality Audio", "Stream at highest quality (uses more data)", "hqAudio")}
-
-        <div style={{ padding:"14px 0" }}>
-          <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0", marginBottom:6 }}>Sleep Timer</div>
-          <div style={{ fontSize:12, color:"#777", marginBottom:12 }}>Automatically pause after a set time</div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {[0,15,30,45,60,90].map(m => (
-              <button key={m} onClick={() => { setSleepMin(m); onSleepTimer(m); }}
-                style={{ background: sleepMin===m?"#e8435a":"rgba(255,255,255,0.08)", border:"none", borderRadius:500, padding:"8px 16px", color: sleepMin===m?"#fff":"#aaa", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
-                {m===0?"Off":`${m} min`}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -565,6 +447,87 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
           <div style={{ display: "flex", gap: 24 }}>
             <button style={{ background:"none", border:"none", color:"inherit", cursor:"pointer" }}><Ico.Share /></button>
             <button style={{ background:"none", border:"none", color:"inherit", cursor:"pointer" }}><Ico.List /></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
+  const [sleepMin, setSleepMin] = useState(0);
+  const row = (label, desc, key, type="toggle", options=null) => (
+    <div key={key} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+      <div>
+        <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0" }}>{label}</div>
+        {desc && <div style={{ fontSize:12, color:"#777", marginTop:2 }}>{desc}</div>}
+      </div>
+      {type==="toggle" && <Toggle value={settings[key]} onChange={(v) => onChange(key, v)} />}
+      {type==="select" && (
+        <select value={settings[key]} onChange={(e) => onChange(key, e.target.value)}
+          style={{ background:"#1a1a24", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, color:"#e8e8e8", padding:"6px 10px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      )}
+    </div>
+  );
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+      <div className="fade-in" style={{ width:"100%", maxWidth:480, margin:"0 auto", background:"#111118", borderRadius:"16px 16px 0 0", padding:"24px 24px 40px", maxHeight:"80vh", overflowY:"auto" }}
+        onClick={e=>e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+          <h2 style={{ fontSize:18, fontWeight:800, color:"#fff" }}>Playback Settings</h2>
+          <button className="icon-btn" onClick={onClose}><Ico.X /></button>
+        </div>
+
+        {row("Shuffle", "Play songs in random order", "shuffle")}
+        {row("Repeat", "Loop playback mode", "repeat", "select", [
+          {value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}
+        ])}
+        {row("Equalizer Preset", "Choose frequency configuration", "eqPreset", "select", [
+          {value:"Normal",label:"Normal"},
+          {value:"Rock",label:"Rock"},
+          {value:"Pop",label:"Pop"},
+          {value:"Jazz",label:"Jazz"},
+          {value:"Classical",label:"Classical"},
+          {value:"BassBoost",label:"Bass Boost"}
+        ])}
+
+        <div style={{ padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 16 }}>Manual Equalizer Tuning</div>
+          <div className="eq-slider-container">
+            <div className="eq-slider-row">
+              <span className="eq-label">Bass</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.bass} onChange={(e) => onChange("bass", parseFloat(e.target.value))} />
+              <span className="eq-value">{settings.bass > 0 ? `+${settings.bass}` : settings.bass}dB</span>
+            </div>
+            <div className="eq-slider-row">
+              <span className="eq-label">Mid</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.mid} onChange={(e) => onChange("mid", parseFloat(e.target.value))} />
+              <span className="eq-value">{settings.mid > 0 ? `+${settings.mid}` : settings.mid}dB</span>
+            </div>
+            <div className="eq-slider-row">
+              <span className="eq-label">Treble</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.treble} onChange={(e) => onChange("treble", parseFloat(e.target.value))} />
+              <span className="eq-value">{settings.treble > 0 ? `+${settings.treble}` : settings.treble}dB</span>
+            </div>
+          </div>
+        </div>
+
+        {row("Crossfade", "Smooth transition between songs", "crossfade")}
+        {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
+        {row("High Quality Audio", "Stream at highest quality (uses more data)", "hqAudio")}
+
+        <div style={{ padding:"14px 0" }}>
+          <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0", marginBottom:6 }}>Sleep Timer</div>
+          <div style={{ fontSize:12, color:"#777", marginBottom:12 }}>Automatically pause after a set time</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {[0,15,30,45,60,90].map(m => (
+              <button key={m} onClick={() => { setSleepMin(m); onSleepTimer(m); }}
+                style={{ background: sleepMin===m?"#e8435a":"rgba(255,255,255,0.08)", border:"none", borderRadius:500, padding:"8px 16px", color: sleepMin===m?"#fff":"#aaa", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
+                {m===0?"Off":`${m} min`}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -918,6 +881,59 @@ function AuthView({ onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function TopBar({ user, onShowAuth, onSignOut, onMenuOpen }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ height:60, background:"rgba(10,10,15,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", flexShrink:0, borderBottom:"1px solid rgba(255,255,255,0.04)", position:"sticky", top:0, zIndex:100 }}>
+      {onMenuOpen && (
+        <button className="icon-btn" onClick={onMenuOpen} style={{ color:"#aaa" }}><Ico.Menu /></button>
+      )}
+      <div style={{ flex:1 }} />
+      {user ? (
+        <div style={{ position:"relative" }}>
+          <button onClick={()=>setOpen(!open)} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:500, padding:"5px 12px 5px 6px", cursor:"pointer", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
+            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700 }}>
+              {user.displayName?.[0]?.toUpperCase()||<Ico.User />}
+            </div>
+            {user.displayName?.split(" ")[0]||"Profile"}
+          </button>
+          {open && (
+            <div style={{ position:"absolute", top:"calc(100% + 8px)", right:0, background:"#1a1a24", borderRadius:8, padding:6, minWidth:160, boxShadow:"0 8px 24px rgba(0,0,0,0.5)", zIndex:200 }}>
+              {["Log out"].map((label) => (
+                <button key={label} onClick={()=>{onSignOut();setOpen(false);}} style={{ width:"100%", background:"none", border:"none", color:"#e8e8e8", padding:"9px 12px", borderRadius:4, cursor:"pointer", fontSize:14, textAlign:"left", fontFamily:"inherit" }}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="none"}>{label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ display:"flex", gap:8 }}>
+          <button className="btn-outline" onClick={onShowAuth} style={{ padding:"7px 20px", fontSize:13 }}>Log in</button>
+          <button className="btn-primary" onClick={onShowAuth} style={{ padding:"7px 20px", fontSize:13 }}>Sign up</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileNav({ view, setView }) {
+  const items = [
+    { id:"home", label:"Home", Icon:Ico.Home },
+    { id:"search", label:"Search", Icon:Ico.Search },
+    { id:"library", label:"Library", Icon:Ico.Library },
+  ];
+  return (
+    <div style={{ position:"fixed", bottom:0, left:0, right:0, height:56, background:"#0d0d14", borderTop:"1px solid rgba(255,255,255,0.06)", display:"flex", zIndex:300 }}>
+      {items.map(({id,label,Icon})=>(
+        <button key={id} onClick={()=>setView(id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:view===id?"#e8435a":"#888", fontSize:10, fontWeight:600, fontFamily:"inherit", transition:"color .15s" }}>
+          <Icon filled={view===id} /><span>{label}</span>
+        </button>
+      ))}
     </div>
   );
 }

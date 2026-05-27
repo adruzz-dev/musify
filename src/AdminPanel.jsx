@@ -1,4 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
 // MUSIFY ADMIN PANEL
 // Drop this file into your src/ folder, then:
 //   1. Add the route in App.jsx (see bottom of this file for instructions)
@@ -7,23 +6,10 @@
 //
 // VERCEL ENV VARS TO ADD (vercel.com → your project → Settings → Environment Variables):
 //   VITE_GITHUB_TOKEN   → your GitHub Personal Access Token (needs repo scope)
-//   VITE_GITHUB_REPO    → e.g.  yourname/musify
+//   VITE_GITHUB_REPO    → e.g. yourname/musify
 //   VITE_GITHUB_FILE    → e.g.  src/App.jsx   (path to the file with SONGS array)
 //   VITE_ADMIN_PASSWORD → any password you want for the admin gate
 //
-// HOW TO GET A GITHUB TOKEN:
-//   github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)
-//   → Generate new token → check "repo" scope → copy the token
-//
-// HOW TO ADD THE ROUTE (in your App.jsx):
-//   1. import AdminPanel from "./AdminPanel";
-//   2. In renderMain(), add at the TOP:
-//        if (view === "admin") return <AdminPanel />;
-//   3. Add a URL hash listener in App() useEffect:
-//        useEffect(() => {
-//          if (window.location.hash === "#admin") setView("admin");
-//        }, []);
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useRef } from "react";
 
@@ -31,6 +17,7 @@ const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || "musify-admin";
 const GITHUB_TOKEN   = process.env.REACT_APP_GITHUB_TOKEN   || "";
 const GITHUB_REPO    = process.env.REACT_APP_GITHUB_REPO    || "";
 const GITHUB_FILE    = process.env.REACT_APP_GITHUB_FILE    || "src/musify.jsx";
+
 // ── Styles ──────────────────────────────────────────────────────────────────
 const S = {
   page: {
@@ -118,6 +105,17 @@ const S = {
     transition: "all 0.15s",
     fontFamily: "'DM Sans', sans-serif",
   },
+  tabButton: (isActive) => ({
+    background: isActive ? "rgba(232,67,90,0.15)" : "transparent",
+    color: isActive ? "#e8435a" : "#888",
+    border: isActive ? "1px solid #e8435a" : "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    padding: "10px 20px",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "all 0.15s",
+  }),
   preview: {
     background: "#0d0d14",
     border: "1px solid rgba(255,255,255,0.06)",
@@ -132,11 +130,7 @@ const S = {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
-    background: color === "green"
-      ? "rgba(34,197,94,0.1)"
-      : color === "red"
-      ? "rgba(232,67,90,0.1)"
-      : "rgba(255,255,255,0.06)",
+    background: color === "green" ? "rgba(34,197,94,0.1)" : color === "red" ? "rgba(232,67,90,0.1)" : "rgba(255,255,255,0.06)",
     border: `1px solid ${color === "green" ? "rgba(34,197,94,0.3)" : color === "red" ? "rgba(232,67,90,0.3)" : "rgba(255,255,255,0.1)"}`,
     borderRadius: 500,
     padding: "6px 14px",
@@ -183,10 +177,9 @@ async function commitFileToGitHub(newContent, sha, commitMsg) {
 }
 
 function injectSongIntoSource(source, song) {
-  // Find the closing ]; of the SONGS array and inject before it
   const marker = "].filter(";
   const idx = source.indexOf(marker);
-  if (idx === -1) throw new Error('Could not find "].filter(" marker in SONGS array. Make sure your SONGS array ends with ].filter(...)');
+  if (idx === -1) throw new Error('Could not find "].filter(" marker in SONGS array.');
 
   const newEntry = `  {
     id: "${song.id}",
@@ -200,15 +193,29 @@ function injectSongIntoSource(source, song) {
   return source.slice(0, idx) + newEntry + source.slice(idx);
 }
 
-function generateId() {
-  return String(Date.now()).slice(-6) + Math.random().toString(36).slice(2, 5);
+function injectPlaylistIntoSource(source, playlist) {
+  const marker = "];\nconst EQ_PRESETS";
+  const idx = source.indexOf(marker);
+  if (idx === -1) throw new Error('Could not find validation sequence end for PLAYLISTS array definition.');
+
+  const newEntry = `  {
+    id: "${playlist.id}",
+    name: ${JSON.stringify(playlist.name)},
+    cover: ${JSON.stringify(playlist.cover)},
+    songIds: ${JSON.stringify(playlist.songIds)},
+  },\n`;
+
+  return source.slice(0, idx) + newEntry + source.slice(idx);
+}
+
+function generateId(prefix = "") {
+  return prefix + String(Date.now()).slice(-6) + Math.random().toString(36).slice(2, 5);
 }
 
 // ── Preview Card ─────────────────────────────────────────────────────────────
 function SongPreview({ song }) {
   const [coverErr, setCoverErr] = useState(false);
   const [audioOk, setAudioOk] = useState(null);
-  const audioRef = useRef(null);
 
   const testAudio = () => {
     const a = new Audio(song.audioUrl);
@@ -219,7 +226,6 @@ function SongPreview({ song }) {
 
   return (
     <div style={S.preview}>
-      {/* Cover */}
       {song.cover && !coverErr ? (
         <img
           src={song.cover}
@@ -231,7 +237,6 @@ function SongPreview({ song }) {
         <div style={{ width: 72, height: 72, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>♪</div>
       )}
 
-      {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: "#f0f0f0", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {song.title || <span style={{ color: "#555" }}>Song title</span>}
@@ -260,6 +265,41 @@ function SongPreview({ song }) {
   );
 }
 
+function PlaylistPreview({ playlist }) {
+  const [coverErr, setCoverErr] = useState(false);
+
+  return (
+    <div style={S.preview}>
+      {playlist.cover && !coverErr ? (
+        <img
+          src={playlist.cover}
+          alt={playlist.name}
+          style={{ width: 72, height: 72, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
+          onError={() => setCoverErr(true)}
+        />
+      ) : (
+        <div style={{ width: 72, height: 72, borderRadius: 8, background: "linear-gradient(135deg,#e8435a,#7c1a2a)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>☰</div>
+      )}
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#f0f0f0", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {playlist.name || <span style={{ color: "#555" }}>Playlist name</span>}
+        </div>
+        <div style={{ fontSize: 13, color: "#888", marginBottom: 4 }}>
+          Target IDs: {playlist.songIds ? playlist.songIds.join(", ") : "None assigned"}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {playlist.cover && (
+            <span style={S.pill(coverErr ? "red" : "green")}>
+              {coverErr ? "✕ Logo/Cover broken" : "✓ Logo/Cover OK"}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Log display ──────────────────────────────────────────────────────────────
 function LogLine({ entry }) {
   const colors = { info: "#888", success: "#4ade80", error: "#e8435a", step: "#60a5fa" };
@@ -275,12 +315,10 @@ function LogLine({ entry }) {
 function PasswordGate({ onUnlock }) {
   const [pw, setPw] = useState("");
   const [err, setErr] = useState(false);
-
   const check = () => {
     if (pw === ADMIN_PASSWORD) { onUnlock(); }
     else { setErr(true); setTimeout(() => setErr(false), 1200); }
   };
-
   return (
     <div style={{ minHeight: "100vh", background: "#09090f", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }}>
       <div style={{ width: "100%", maxWidth: 360, padding: 24 }}>
@@ -327,7 +365,12 @@ function ConfigWarning() {
 // ── Main Admin Panel ─────────────────────────────────────────────────────────
 export default function AdminPanel() {
   const [unlocked, setUnlocked] = useState(false);
-  const [form, setForm] = useState({ title: "", artist: "", album: "", audioUrl: "", cover: "" });
+  const [activeTab, setActiveTab] = useState("song"); // 'song' | 'playlist'
+  
+  // Forms State
+  const [songForm, setSongForm] = useState({ title: "", artist: "", album: "", audioUrl: "", cover: "" });
+  const [playlistForm, setPlaylistForm] = useState({ name: "", cover: "", songIdsString: "" });
+  
   const [status, setStatus] = useState("idle"); // idle | loading | success | error
   const [logs, setLogs] = useState([]);
   const [errorMsg, setErrorMsg] = useState("");
@@ -337,23 +380,30 @@ export default function AdminPanel() {
     setLogs(prev => [{ msg, type, time, id: Date.now() + Math.random() }, ...prev].slice(0, 50));
   };
 
-  const field = (key) => ({
-    value: form[key],
-    onChange: e => setForm(p => ({ ...p, [key]: e.target.value })),
+  const handleSongField = (key) => ({
+    value: songForm[key],
+    onChange: e => setSongForm(p => ({ ...p, [key]: e.target.value })),
     style: { ...S.input },
     onFocus: e => { e.target.style.borderColor = "#e8435a"; },
     onBlur:  e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; },
   });
 
-  const handleSubmit = async () => {
-    // Validate
-    const missing = ["title", "artist", "audioUrl"].filter(k => !form[k].trim());
+  const handlePlaylistField = (key) => ({
+    value: playlistForm[key],
+    onChange: e => setPlaylistForm(p => ({ ...p, [key]: e.target.value })),
+    style: { ...S.input },
+    onFocus: e => { e.target.style.borderColor = "#e8435a"; },
+    onBlur:  e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; },
+  });
+
+  const handleSongSubmit = async () => {
+    const missing = ["title", "artist", "audioUrl"].filter(k => !songForm[k].trim());
     if (missing.length) {
-      setErrorMsg(`Please fill in: ${missing.join(", ")}`);
+      setErrorMsg(`Please fill in song inputs: ${missing.join(", ")}`);
       return;
     }
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
-      setErrorMsg("GitHub env vars not set — see the warning above.");
+      setErrorMsg("GitHub environment configurations missing.");
       return;
     }
 
@@ -363,38 +413,74 @@ export default function AdminPanel() {
 
     const song = {
       id: generateId(),
-      title: form.title.trim(),
-      artist: form.artist.trim(),
-      album: form.album.trim(),
-      audioUrl: form.audioUrl.trim(),
-      cover: form.cover.trim(),
+      title: songForm.title.trim(),
+      artist: songForm.artist.trim(),
+      album: songForm.album.trim(),
+      audioUrl: songForm.audioUrl.trim(),
+      cover: songForm.cover.trim(),
     };
 
     try {
-      addLog(`Starting — adding "${song.title}" by ${song.artist}`, "step");
-
-      addLog("Fetching current file from GitHub…", "info");
+      addLog(`Starting — appending track "${song.title}" by ${song.artist}`, "step");
+      addLog("Downloading current distribution manifest from GitHub…", "info");
       const { content, sha } = await fetchFileFromGitHub();
-      addLog(`✓ Fetched ${GITHUB_FILE} (${(content.length / 1024).toFixed(1)} KB)`, "success");
-
-      addLog("Injecting song into SONGS array…", "info");
+      addLog(`✓ Synchronized source asset metadata package file`, "success");
+      
+      addLog("Injecting song structure profile definition…", "info");
       const updated = injectSongIntoSource(content, song);
-      addLog("✓ Song injected (ID: " + song.id + ")", "success");
-
-      addLog("Committing to GitHub…", "info");
-      await commitFileToGitHub(
-        updated,
-        sha,
-        `feat: add song "${song.title}" by ${song.artist} [admin panel]`
-      );
-      addLog("✓ Committed to GitHub!", "success");
-      addLog("Vercel will auto-redeploy in ~30–60 seconds.", "info");
-      addLog("🎵 Done! Song will appear on the site after deployment.", "success");
+      
+      addLog("Pushing payload modifications directly to target repo…", "info");
+      await commitFileToGitHub(updated, sha, `feat: insert master stream record "${song.title}" [admin pipeline]`);
+      addLog(`✓ Master distribution updated successfully! Deployment sync requested.`, "success");
 
       setStatus("success");
-      setForm({ title: "", artist: "", album: "", audioUrl: "", cover: "" });
+      setSongForm({ title: "", artist: "", album: "", audioUrl: "", cover: "" });
     } catch (e) {
-      addLog("✕ Error: " + e.message, "error");
+      addLog("✕ Error pipeline stack exception: " + e.message, "error");
+      setErrorMsg(e.message);
+      setStatus("error");
+    }
+  };
+
+  const handlePlaylistSubmit = async () => {
+    if (!playlistForm.name.trim()) {
+      setErrorMsg("Playlist Name is a required targeting field.");
+      return;
+    }
+
+    setErrorMsg("");
+    setStatus("loading");
+    setLogs([]);
+
+    const extractedIds = playlistForm.songIdsString
+      .split(",")
+      .map(id => id.trim())
+      .filter(id => id.length > 0);
+
+    const playlist = {
+      id: generateId("pl-"),
+      name: playlistForm.name.trim(),
+      cover: playlistForm.cover.trim(),
+      songIds: extractedIds,
+    };
+
+    try {
+      addLog(`Starting — building custom collection cover package "${playlist.name}"`, "step");
+      addLog("Syncing global array definitions from repository instance…", "info");
+      const { content, sha } = await fetchFileFromGitHub();
+      addLog(`✓ Core source components mapping verified`, "success");
+
+      addLog("Injecting structural catalog entry record payload…", "info");
+      const updated = injectPlaylistIntoSource(content, playlist);
+
+      addLog("Committing directory changes back to remote workspace file…", "info");
+      await commitFileToGitHub(updated, sha, `feat: publish playlist wrapper canvas "${playlist.name}" [admin pipeline]`);
+      addLog(`✓ Collection catalog updated securely! Pipeline processing activation complete.`, "success");
+
+      setStatus("success");
+      setPlaylistForm({ name: "", cover: "", songIdsString: "" });
+    } catch (e) {
+      addLog("✕ Configuration processing runtime fault: " + e.message, "error");
       setErrorMsg(e.message);
       setStatus("error");
     }
@@ -403,7 +489,6 @@ export default function AdminPanel() {
   const reset = () => { setStatus("idle"); setErrorMsg(""); };
 
   if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />;
-
   return (
     <div style={S.page}>
       {/* Header */}
@@ -412,107 +497,131 @@ export default function AdminPanel() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>Musify</span>
-            <span style={S.badge}>Admin</span>
+            <span style={S.badge}>Admin Panel</span>
           </div>
-          <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>Song Manager · Auto-commits to GitHub → Vercel deploys</div>
+          <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>System Registry Controller · Continuous Multi-Injection Assembly</div>
         </div>
       </div>
 
       <div style={S.content}>
         <ConfigWarning />
 
-        {/* How it works */}
+        {/* Tab Selection Switch */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+          <button style={S.tabButton(activeTab === "song")} onClick={() => { reset(); setActiveTab("song"); }}>
+            🎵 Add Music Track
+          </button>
+          <button style={S.tabButton(activeTab === "playlist")} onClick={() => { reset(); setActiveTab("playlist"); }}>
+            🖼 Add Cover / Playlist Graphic
+          </button>
+        </div>
+
+        {/* Info Box */}
         <div style={{ ...S.card, background: "rgba(96,165,250,0.05)", border: "1px solid rgba(96,165,250,0.15)", marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 10 }}>How it works</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 10 }}>Pipeline Architecture</div>
           <div style={{ color: "#aaa", fontSize: 13, lineHeight: 1.8 }}>
-            1. Fill in the song details below using your Cloudinary URLs<br />
-            2. Click <strong style={{ color: "#e8e8e8" }}>Add Song</strong> — this reads your <code style={{ color: "#60a5fa", fontSize: 12 }}>{GITHUB_FILE}</code> from GitHub<br />
-            3. The new song is injected into the <code style={{ color: "#60a5fa", fontSize: 12 }}>SONGS</code> array and committed automatically<br />
-            4. Vercel detects the commit and redeploys your site (~30–60 sec)
+            Data updates write directly back into source arrays using automated string operations. 
+            Redeployment registers on verification of live commits inside <code style={{ color: "#60a5fa", fontSize: 12 }}>{GITHUB_FILE}</code>.
           </div>
         </div>
 
-        {/* Form */}
-        <div style={S.card}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            Add New Song
-          </h2>
-
-          <div style={S.grid2}>
-            <div>
-              <label style={S.label}>Song Title *</label>
-              <input placeholder="e.g. Vaishakha Sandhye" {...field("title")} />
+        {/* Form rendering container block */}
+        {activeTab === "song" ? (
+          <div style={S.card}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              Add Track Asset Parameters
+            </h2>
+            <div style={S.grid2}>
+              <div>
+                <label style={S.label}>Track Title *</label>
+                <input placeholder="e.g. Vaishakha Sandhye" {...handleSongField("title")} />
+              </div>
+              <div>
+                <label style={S.label}>Primary Artist *</label>
+                <input placeholder="e.g. KJ Yesudas" {...handleSongField("artist")} />
+              </div>
             </div>
-            <div>
-              <label style={S.label}>Artist *</label>
-              <input placeholder="e.g. KJ Yesudas" {...field("artist")} />
+            <div style={S.grid1}>
+              <label style={S.label}>Album Designation</label>
+              <input placeholder="e.g. Nadodikkattu" {...handleSongField("album")} />
             </div>
-          </div>
-
-          <div style={S.grid1}>
-            <label style={S.label}>Album</label>
-            <input placeholder="e.g. Nadodikkattu" {...field("album")} />
-          </div>
-
-          <div style={{ ...S.grid1, marginBottom: 0 }}>
-            <label style={S.label}>Audio URL (Cloudinary MP3) *</label>
-            <input
-              placeholder="https://res.cloudinary.com/.../song.mp3"
-              {...field("audioUrl")}
-              style={{ ...S.input, fontFamily: "monospace", fontSize: 12 }}
-            />
-          </div>
-
-          <div style={{ marginTop: 20, marginBottom: 20 }}>
-            <label style={S.label}>Cover Image URL (Cloudinary)</label>
-            <input
-              placeholder="https://res.cloudinary.com/.../cover.jpg"
-              {...field("cover")}
-              style={{ ...S.input, fontFamily: "monospace", fontSize: 12 }}
-            />
-          </div>
-
-          {/* Preview */}
-          {(form.title || form.artist || form.audioUrl || form.cover) && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>Preview</div>
-              <SongPreview song={form} />
+            <div style={S.grid1}>
+              <label style={S.label}>Audio URL Source (Cloudinary MP3) *</label>
+              <input placeholder="https://res.cloudinary.com/.../song.mp3" {...handleSongField("audioUrl")} style={{ ...S.input, fontFamily: "monospace", fontSize: 12 }} />
             </div>
-          )}
-
-          {errorMsg && (
-            <div style={{ marginTop: 20, background: "rgba(232,67,90,0.08)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 8, padding: "12px 16px", color: "#e8435a", fontSize: 13 }}>
-              {errorMsg}
+            <div style={{ marginTop: 20, marginBottom: 20 }}>
+              <label style={S.label}>Track Cover Artwork URL</label>
+              <input placeholder="https://res.cloudinary.com/.../cover.jpg" {...handleSongField("cover")} style={{ ...S.input, fontFamily: "monospace", fontSize: 12 }} />
             </div>
-          )}
 
-          <div style={{ display: "flex", gap: 12, marginTop: 24, alignItems: "center" }}>
-            {status === "success" ? (
-              <>
-                <span style={S.pill("green")}>✓ Song added successfully!</span>
-                <button onClick={reset} style={{ ...S.btnOutline, fontFamily: "'DM Sans', sans-serif" }}>Add another</button>
-              </>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={status === "loading"}
-                style={{ ...S.btnPrimary, opacity: status === "loading" ? 0.7 : 1, cursor: status === "loading" ? "wait" : "pointer" }}
-              >
-                {status === "loading" ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: "spin 1s linear infinite" }}>
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
-                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                    Committing…
-                  </>
-                ) : "Add Song to Musify"}
-              </button>
+            {(songForm.title || songForm.artist || songForm.audioUrl || songForm.cover) && (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>Preview Context</div>
+                <SongPreview song={songForm} />
+              </div>
             )}
-          </div>
-        </div>
 
-        {/* Activity Log */}
+            {errorMsg && <div style={{ marginTop: 20, background: "rgba(232,67,90,0.08)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 8, padding: "12px 16px", color: "#e8435a", fontSize: 13 }}>{errorMsg}</div>}
+
+            <div style={{ display: "flex", gap: 12, marginTop: 24, alignItems: "center" }}>
+              {status === "success" ? (
+                <>
+                  <span style={S.pill("green")}>✓ Entry integrated and committed!</span>
+                  <button onClick={reset} style={S.btnOutline}>Process Another</button>
+                </>
+              ) : (
+                <button onClick={handleSongSubmit} disabled={status === "loading"} style={{ ...S.btnPrimary, opacity: status === "loading" ? 0.7 : 1, cursor: status === "loading" ? "wait" : "pointer" }}>
+                  {status === "loading" ? "Executing Commit Change..." : "Commit Track Entry"}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={S.card}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              Create Brand Cover/Playlist Container Graphic
+            </h2>
+            <div style={S.grid1}>
+              <label style={S.label}>Playlist / Collection Display Name *</label>
+              <input placeholder="e.g. Malayalam Melodies" {...handlePlaylistField("name")} />
+            </div>
+            <div style={S.grid1}>
+              <label style={S.label}>Master Canvas/Logo Cover URL (Cloudinary)</label>
+              <input placeholder="https://res.cloudinary.com/.../artwork.jpg" {...handlePlaylistField("cover")} style={{ ...S.input, fontFamily: "monospace", fontSize: 12 }} />
+            </div>
+            <div style={S.grid1}>
+              <label style={S.label}>Assigned Song Track IDs (Comma-Separated Values)</label>
+              <input placeholder="e.g. 1, 2, 3, 4" {...handlePlaylistField("songIdsString")} style={{ ...S.input, fontFamily: "monospace", fontSize: 13 }} />
+              <p style={{ color: "#666", fontSize: 11, marginTop: 6, lineHeight: "14px" }}>
+                Provide exact string matching values tracking against unique array index identities mapped across core profiles.
+              </p>
+            </div>
+
+            {(playlistForm.name || playlistForm.cover || playlistForm.songIdsString) && (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>Render Presentation Preview</div>
+                <PlaylistPreview playlist={{ name: playlistForm.name, cover: playlistForm.cover, songIds: playlistForm.songIdsString.split(",").map(i => i.trim()) }} />
+              </div>
+            )}
+
+            {errorMsg && <div style={{ marginTop: 20, background: "rgba(232,67,90,0.08)", border: "1px solid rgba(232,67,90,0.2)", borderRadius: 8, padding: "12px 16px", color: "#e8435a", fontSize: 13 }}>{errorMsg}</div>}
+
+            <div style={{ display: "flex", gap: 12, marginTop: 24, alignItems: "center" }}>
+              {status === "success" ? (
+                <>
+                  <span style={S.pill("green")}>✓ Collection container injected successfully!</span>
+                  <button onClick={reset} style={S.btnOutline}>Process Another</button>
+                </>
+              ) : (
+                <button onClick={handlePlaylistSubmit} disabled={status === "loading"} style={{ ...S.btnPrimary, opacity: status === "loading" ? 0.7 : 1, cursor: status === "loading" ? "wait" : "pointer" }}>
+                  {status === "loading" ? "Executing Catalog Injection..." : "Commit Collection Profile"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Activity Logs Frame */}
         {logs.length > 0 && (
           <div style={S.card}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 14 }}>Activity Log</div>
@@ -521,17 +630,6 @@ export default function AdminPanel() {
             </div>
           </div>
         )}
-
-        {/* Quick tips */}
-        <div style={{ ...S.card, background: "transparent", border: "1px solid rgba(255,255,255,0.05)" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 12 }}>Cloudinary Tips</div>
-          <div style={{ color: "#666", fontSize: 12, lineHeight: 2 }}>
-            • Upload to Cloudinary → click the asset → copy the URL<br />
-            • For audio: use <code style={{ color: "#aaa" }}>/video/upload/q_auto/f_auto/v…/song.mp3</code><br />
-            • For images: use <code style={{ color: "#aaa" }}>/image/upload/q_auto/f_auto/v…/cover.jpg</code><br />
-            • The <code style={{ color: "#aaa" }}>q_auto/f_auto</code> flags auto-optimize quality & format
-          </div>
-        </div>
       </div>
     </div>
   );

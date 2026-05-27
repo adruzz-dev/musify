@@ -104,6 +104,7 @@ function CoverArt({ cover, size=48, title, radius=6 }) {
   );
 }
 
+// Custom Glassmorphic Premium Play Button Logo Component
 function MusifyLogo({ size = 32, style = {} }) {
   return (
     <div style={{ width: size, height: size, borderRadius: "22%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "#000", border: "1px solid rgba(255,50,50,0.2)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", ...style }}>
@@ -205,6 +206,123 @@ function Toggle({ value, onChange }) {
     <button className="toggle-track" onClick={() => onChange(!value)} style={{ background: value ? "#e8435a" : "rgba(255,255,255,0.15)" }}>
       <div className="toggle-thumb" style={{ left: value ? "23px" : "3px" }} />
     </button>
+  );
+}
+
+function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
+  const [hovered, setHovered] = useState(false);
+  const duration = useSongDuration(song.audioUrl);
+  return (
+    <div className={`song-row${isActive?" active":""}`}
+      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
+      onDoubleClick={onPlay}>
+      <div className="num">
+        {hovered||isActive ? (
+          <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":"#fff", display:"flex", alignItems:"center", justifycontent:"center", padding:0 }}>
+            {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
+          </button>
+        ) : isActive ? <span style={{color:"#e8435a"}}>{">"}</span> : <span>{index+1}</span>}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
+        <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontSize:14, fontWeight:600, color:isActive?"#e8435a":"#f0f0f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.title}</div>
+          <div style={{ fontSize:12, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.artist}</div>
+        </div>
+      </div>
+      <div className="album-col" style={{ fontSize:13, color:"#777", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.album}</div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
+        <button className={`icon-btn${liked?" active":""}`} onClick={(e)=>{e.stopPropagation();onLike();}} style={{ opacity:hovered||liked?1:0, transition:"opacity .15s" }}>
+          <Ico.Heart filled={liked} />
+        </button>
+        {duration > 0 && (
+          <span style={{ color:"#777", fontSize:12, minWidth:32, textAlign:"right", fontVariantNumeric:"tabular-nums", display:"flex", alignItems:"center", gap:3 }}>
+            <Ico.Clock />{formatTime(duration)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
+  const [sleepMin, setSleepMin] = useState(0);
+  const row = (label, desc, key, type="toggle", options=null) => (
+    <div key={key} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+      <div>
+        <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0" }}>{label}</div>
+        {desc && <div style={{ fontSize:12, color:"#777", marginTop:2 }}>{desc}</div>}
+      </div>
+      {type==="toggle" && <Toggle value={settings[key]} onChange={(v) => onChange(key, v)} />}
+      {type==="select" && (
+        <select value={settings[key]} onChange={(e) => onChange(key, e.target.value)}
+          style={{ background:"#1a1a24", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, color:"#e8e8e8", padding:"6px 10px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      )}
+    </div>
+  );
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+      <div className="fade-in" style={{ width:"100%", maxWidth:480, margin:"0 auto", background:"#111118", borderRadius:"16px 16px 0 0", padding:"24px 24px 40px", maxHeight:"80vh", overflowY:"auto" }}
+        onClick={e=>e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+          <h2 style={{ fontSize:18, fontWeight:800, color:"#fff" }}>Playback Settings</h2>
+          <button className="icon-btn" onClick={onClose}><Ico.X /></button>
+        </div>
+
+        {row("Shuffle", "Play songs in random order", "shuffle")}
+        {row("Repeat", "Loop playback mode", "repeat", "select", [
+          {value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}
+        ])}
+        {row("Equalizer Preset", "Choose frequency configuration", "eqPreset", "select", [
+          {value:"Normal",label:"Normal"},
+          {value:"Rock",label:"Rock"},
+          {value:"Pop",label:"Pop"},
+          {value:"Jazz",label:"Jazz"},
+          {value:"Classical",label:"Classical"},
+          {value:"BassBoost",label:"Bass Boost"}
+        ])}
+
+        <div style={{ padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 16 }}>Manual Equalizer Tuning</div>
+          <div className="eq-slider-container">
+            <div className="eq-slider-row">
+              <span className="eq-label">Bass</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.bass} onChange={(e) => onChange("bass", parseFloat(e.target.value))} />
+              <span className="eq-value">{settings.bass > 0 ? `+${settings.bass}` : settings.bass}dB</span>
+            </div>
+            <div className="eq-slider-row">
+              <span className="eq-label">Mid</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.mid} onChange={(e) => onChange("mid", parseFloat(e.target.value))} />
+              <span className="eq-value">{settings.mid > 0 ? `+${settings.mid}` : settings.mid}dB</span>
+            </div>
+            <div className="eq-slider-row">
+              <span className="eq-label">Treble</span>
+              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.treble} onChange={(e) => onChange("treble", parseFloat(e.target.value))} />
+              <span className="eq-value">{settings.treble > 0 ? `+${settings.treble}` : settings.treble}dB</span>
+            </div>
+          </div>
+        </div>
+
+        {row("Crossfade", "Smooth transition between songs", "crossfade")}
+        {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
+        {row("High Quality Audio", "Stream at highest quality (uses more data)", "hqAudio")}
+
+        <div style={{ padding:"14px 0" }}>
+          <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0", marginBottom:6 }}>Sleep Timer</div>
+          <div style={{ fontSize:12, color:"#777", marginBottom:12 }}>Automatically pause after a set time</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {[0,15,30,45,60,90].map(m => (
+              <button key={m} onClick={() => { setSleepMin(m); onSleepTimer(m); }}
+                style={{ background: sleepMin===m?"#e8435a":"rgba(255,255,255,0.08)", border:"none", borderRadius:500, padding:"8px 16px", color: sleepMin===m?"#fff":"#aaa", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
+                {m===0?"Off":`${m} min`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -430,7 +548,7 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
           <button onClick={onShuffleToggle} style={{ background:"none", border:"none", color: shuffle ? "#e8435a" : "rgba(255,255,255,0.7)", cursor:"pointer" }}><Ico.Shuffle /></button>
           <button onClick={onPrev} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", transform: "scale(1.5)" }}><Ico.Prev /></button>
           
-          <button onClick={onToggle} style={{ width: 68, height: 68, borderRadius: "50%", background: "#fff", color: "#000", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor:"pointer" }}>
+          <button onClick={onToggle} style={{ width: 68, height: 68, borderRadius: "50%", background: "#fff", color: "#000", border: "none", display: "flex", alignItems: "center", justifyContent:"center", cursor:"pointer" }}>
             <div style={{ transform: "scale(1.6)", display:"flex" }}>
               {isPlaying ? <Ico.Pause /> : <Ico.Play />}
             </div>
@@ -454,119 +572,128 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
   );
 }
 
-function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
-  const [sleepMin, setSleepMin] = useState(0);
-  const row = (label, desc, key, type="toggle", options=null) => (
-    <div key={key} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-      <div>
-        <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0" }}>{label}</div>
-        {desc && <div style={{ fontSize:12, color:"#777", marginTop:2 }}>{desc}</div>}
-      </div>
-      {type==="toggle" && <Toggle value={settings[key]} onChange={(v) => onChange(key, v)} />}
-      {type==="select" && (
-        <select value={settings[key]} onChange={(e) => onChange(key, e.target.value)}
-          style={{ background:"#1a1a24", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, color:"#e8e8e8", padding:"6px 10px", fontSize:13, fontFamily:"inherit", outline:"none" }}>
-          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      )}
-    </div>
-  );
+function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings }) {
+  if (!open) return null;
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
-      <div className="fade-in" style={{ width:"100%", maxWidth:480, margin:"0 auto", background:"#111118", borderRadius:"16px 16px 0 0", padding:"24px 24px 40px", maxHeight:"80vh", overflowY:"auto" }}
-        onClick={e=>e.stopPropagation()}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-          <h2 style={{ fontSize:18, fontWeight:800, color:"#fff" }}>Playback Settings</h2>
+    <>
+      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:400 }} onClick={onClose} />
+      <div className="slide-in" style={{ position:"fixed", top:0, left:0, bottom:0, width:280, background:"#0d0d14", zIndex:401, display:"flex", flexDirection:"column", overflowY:"auto", padding:"0 8px 24px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <MusifyLogo size={28} />
+            <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
+          </div>
           <button className="icon-btn" onClick={onClose}><Ico.X /></button>
         </div>
 
-        {row("Shuffle", "Play songs in random order", "shuffle")}
-        {row("Repeat", "Loop playback mode", "repeat", "select", [
-          {value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}
-        ])}
-        {row("Equalizer Preset", "Choose frequency configuration", "eqPreset", "select", [
-          {value:"Normal",label:"Normal"},
-          {value:"Rock",label:"Rock"},
-          {value:"Pop",label:"Pop"},
-          {value:"Jazz",label:"Jazz"},
-          {value:"Classical",label:"Classical"},
-          {value:"BassBoost",label:"Bass Boost"}
-        ])}
-
-        <div style={{ padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f0f0", marginBottom: 16 }}>Manual Equalizer Tuning</div>
-          <div className="eq-slider-container">
-            <div className="eq-slider-row">
-              <span className="eq-label">Bass</span>
-              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.bass} onChange={(e) => onChange("bass", parseFloat(e.target.value))} />
-              <span className="eq-value">{settings.bass > 0 ? `+${settings.bass}` : settings.bass}dB</span>
+        {user ? (
+          <div style={{ margin:"0 8px 16px", background:"rgba(255,255,255,0.05)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 }}>
+              {user.displayName?.[0]?.toUpperCase() || "U"}
             </div>
-            <div className="eq-slider-row">
-              <span className="eq-label">Mid</span>
-              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.mid} onChange={(e) => onChange("mid", parseFloat(e.target.value))} />
-              <span className="eq-value">{settings.mid > 0 ? `+${settings.mid}` : settings.mid}dB</span>
-            </div>
-            <div className="eq-slider-row">
-              <span className="eq-label">Treble</span>
-              <input type="range" min="-10" max="10" step="0.5" className="eq-slider" value={settings.treble} onChange={(e) => onChange("treble", parseFloat(e.target.value))} />
-              <span className="eq-value">{settings.treble > 0 ? `+${settings.treble}` : settings.treble}dB</span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.displayName || "User"}</div>
+              <div style={{ fontSize:11, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
             </div>
           </div>
-        </div>
-
-        {row("Crossfade", "Smooth transition between songs", "crossfade")}
-        {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
-        {row("High Quality Audio", "Stream at highest quality (uses more data)", "hqAudio")}
-
-        <div style={{ padding:"14px 0" }}>
-          <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0", marginBottom:6 }}>Sleep Timer</div>
-          <div style={{ fontSize:12, color:"#777", marginBottom:12 }}>Automatically pause after a set time</div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {[0,15,30,45,60,90].map(m => (
-              <button key={m} onClick={() => { setSleepMin(m); onSleepTimer(m); }}
-                style={{ background: sleepMin===m?"#e8435a":"rgba(255,255,255,0.08)", border:"none", borderRadius:500, padding:"8px 16px", color: sleepMin===m?"#fff":"#aaa", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", transition:"all .15s" }}>
-                {m===0?"Off":`${m} min`}
-              </button>
-            ))}
+        ) : (
+          <div style={{ margin:"0 8px 16px", display:"flex", gap:8 }}>
+            <button className="btn-primary" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Log in</button>
+            <button className="btn-outline" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Sign up</button>
           </div>
-        </div>
+        )}
+
+        <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>{setView("home");onClose();}}>
+          <Ico.Home filled={view==="home"} /><span>Home</span>
+        </button>
+        <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>{setView("search");onClose();}}>
+          <Ico.Search /><span>Search</span>
+        </button>
+        <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>{setView("library");onClose();}}>
+          <Ico.Library /><span>Your Library</span>
+        </button>
+
+        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
+
+        <div style={{ padding:"4px 14px 8px", fontSize:11, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</div>
+        {resolvePlaylists().map((pl) => (
+          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
+            <CoverArt cover={pl.cover} size={36} title={pl.name} radius={4} />
+            <span style={{ fontSize:13 }}>{pl.name}</span>
+          </button>
+        ))}
+        {user && (
+          <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>{setView("liked");onClose();}}>
+            <div style={{ width:36, height:36, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <Ico.Heart filled />
+            </div>
+            <span style={{ fontSize:13 }}>Liked Songs</span>
+          </button>
+        )}
+        {userPlaylists?.map((pl) => (
+          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
+            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0, fontWeight:700 }}>M</div>
+            <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
+          </button>
+        ))}
+        {user && (
+          <button className="sidebar-item" onClick={onCreatePlaylist}>
+            <div style={{ width:36, height:36, borderRadius:4, background:"rgba(255,255,255,0.08)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Plus /></div>
+            <span style={{ fontSize:13 }}>New Playlist</span>
+          </button>
+        )}
+
+        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
+
+        <button className="sidebar-item" onClick={()=>{onOpenSettings();onClose();}}>
+          <Ico.Settings /><span>Settings</span>
+        </button>
+        {user && (
+          <button className="sidebar-item" onClick={()=>{onSignOut();onClose();}} style={{ color:"#e8435a" }}>
+            <Ico.LogOut /><span>Log out</span>
+          </button>
+        )}
       </div>
-    </div>
+    </>
   );
 }
 
-function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
-  const [hovered, setHovered] = useState(false);
-  const duration = useSongDuration(song.audioUrl);
+function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings }) {
   return (
-    <div className={`song-row${isActive?" active":""}`}
-      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
-      onDoubleClick={onPlay}>
-      <div className="num">
-        {hovered||isActive ? (
-          <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":"#fff", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
-            {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
-          </button>
-        ) : isActive ? <span style={{color:"#e8435a"}}>{">"}</span> : <span>{index+1}</span>}
+    <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>
+      <div style={{ padding:"8px 12px 20px", display:"flex", alignItems:"center", gap:8 }}>
+        <MusifyLogo size={30} />
+        <span style={{ fontWeight:800, fontSize:18, color:"#fff", letterSpacing:"-0.5px" }}>Musify</span>
       </div>
-      <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
-        <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:14, fontWeight:600, color:isActive?"#e8435a":"#f0f0f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.title}</div>
-          <div style={{ fontSize:12, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.artist}</div>
-        </div>
+      <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>setView("home")}><Ico.Home filled={view==="home"} /><span>Home</span></button>
+      <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>setView("search")}><Ico.Search /><span>Search</span></button>
+      <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>setView("library")}><Ico.Library /><span>Your Library</span></button>
+      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
+      <div style={{ padding:"4px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <span style={{ fontSize:11, color:"#666", fontWeight:700, textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</span>
+        {user && <button className="icon-btn" onClick={onCreatePlaylist}><Ico.Plus /></button>}
       </div>
-      <div className="album-col" style={{ fontSize:13, color:"#777", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.album}</div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
-        <button className={`icon-btn${liked?" active":""}`} onClick={(e)=>{e.stopPropagation();onLike();}} style={{ opacity:hovered||liked?1:0, transition:"opacity .15s" }}>
-          <Ico.Heart filled={liked} />
+      {resolvePlaylists().map((pl) => (
+        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
+          <CoverArt cover={pl.cover} size={32} title={pl.name} radius={3} />
+          <span style={{ fontSize:13 }}>{pl.name}</span>
         </button>
-        {duration > 0 && (
-          <span style={{ color:"#777", fontSize:12, minWidth:32, textAlign:"right", fontVariantNumeric:"tabular-nums", display:"flex", alignItems:"center", gap:3 }}>
-            <Ico.Clock />{formatTime(duration)}
-          </span>
-        )}
-      </div>
+      ))}
+      {user && (
+        <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>setView("liked")}>
+          <div style={{ width:32, height:32, borderRadius:3, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Heart filled /></div>
+          <span style={{ fontSize:13 }}>Liked Songs</span>
+        </button>
+      )}
+      {userPlaylists?.map((pl) => (
+        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
+          <div style={{ width:32, height:32, borderRadius:3, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0, fontWeight:700 }}>M</div>
+          <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
+        </button>
+      ))}
+      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
+      <button className="sidebar-item" onClick={onOpenSettings}><Ico.Settings /><span>Settings</span></button>
+      {user && <button className="sidebar-item" onClick={onSignOut} style={{ color:"#e8435a" }}><Ico.LogOut /><span>Log out</span></button>}
     </div>
   );
 }
@@ -791,185 +918,6 @@ function AuthView({ onClose }) {
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings }) {
-  if (!open) return null;
-  return (
-    <>
-      <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:400 }} onClick={onClose} />
-      <div className="slide-in" style={{ position:"fixed", top:0, left:0, bottom:0, width:280, background:"#0d0d14", zIndex:401, display:"flex", flexDirection:"column", overflowY:"auto", padding:"0 8px 24px" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <MusifyLogo size={28} />
-            <span style={{ fontWeight:800, fontSize:18, color:"#fff" }}>Musify</span>
-          </div>
-          <button className="icon-btn" onClick={onClose}><Ico.X /></button>
-        </div>
-
-        {user ? (
-          <div style={{ margin:"0 8px 16px", background:"rgba(255,255,255,0.05)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 }}>
-              {user.displayName?.[0]?.toUpperCase() || "U"}
-            </div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:14, fontWeight:700, color:"#fff", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.displayName || "User"}</div>
-              <div style={{ fontSize:11, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ margin:"0 8px 16px", display:"flex", gap:8 }}>
-            <button className="btn-primary" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Log in</button>
-            <button className="btn-outline" onClick={()=>{onShowAuth();onClose();}} style={{ flex:1, padding:"10px", fontSize:13 }}>Sign up</button>
-          </div>
-        )}
-
-        <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>{setView("home");onClose();}}>
-          <Ico.Home filled={view==="home"} /><span>Home</span>
-        </button>
-        <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>{setView("search");onClose();}}>
-          <Ico.Search /><span>Search</span>
-        </button>
-        <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>{setView("library");onClose();}}>
-          <Ico.Library /><span>Your Library</span>
-        </button>
-
-        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
-
-        <div style={{ padding:"4px 14px 8px", fontSize:11, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</div>
-        {resolvePlaylists().map((pl) => (
-          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
-            <CoverArt cover={pl.cover} size={36} title={pl.name} radius={4} />
-            <span style={{ fontSize:13 }}>{pl.name}</span>
-          </button>
-        ))}
-        {user && (
-          <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>{setView("liked");onClose();}}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <Ico.Heart filled />
-            </div>
-            <span style={{ fontSize:13 }}>Liked Songs</span>
-          </button>
-        )}
-        {userPlaylists?.map((pl) => (
-          <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0, fontWeight:700 }}>M</div>
-            <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
-          </button>
-        ))}
-        {user && (
-          <button className="sidebar-item" onClick={onCreatePlaylist}>
-            <div style={{ width:36, height:36, borderRadius:4, background:"rgba(255,255,255,0.08)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Plus /></div>
-            <span style={{ fontSize:13 }}>New Playlist</span>
-          </button>
-        )}
-
-        <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
-
-        <button className="sidebar-item" onClick={()=>{onOpenSettings();onClose();}}>
-          <Ico.Settings /><span>Settings</span>
-        </button>
-        {user && (
-          <button className="sidebar-item" onClick={()=>{onSignOut();onClose();}} style={{ color:"#e8435a" }}>
-            <Ico.LogOut /><span>Log out</span>
-          </button>
-        )}
-      </div>
-    </>
-  );
-}
-
-function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings }) {
-  return (
-    <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>
-      <div style={{ padding:"8px 12px 20px", display:"flex", alignItems:"center", gap:8 }}>
-        <MusifyLogo size={30} />
-        <span style={{ fontWeight:800, fontSize:18, color:"#fff", letterSpacing:"-0.5px" }}>Musify</span>
-      </div>
-      <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>setView("home")}><Ico.Home filled={view==="home"} /><span>Home</span></button>
-      <button className={`sidebar-item${view==="search"?" active":""}`} onClick={()=>setView("search")}><Ico.Search /><span>Search</span></button>
-      <button className={`sidebar-item${view==="library"?" active":""}`} onClick={()=>setView("library")}><Ico.Library /><span>Your Library</span></button>
-      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
-      <div style={{ padding:"4px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <span style={{ fontSize:11, color:"#666", fontWeight:700, textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</span>
-        {user && <button className="icon-btn" onClick={onCreatePlaylist}><Ico.Plus /></button>}
-      </div>
-      {resolvePlaylists().map((pl) => (
-        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
-          <CoverArt cover={pl.cover} size={32} title={pl.name} radius={3} />
-          <span style={{ fontSize:13 }}>{pl.name}</span>
-        </button>
-      ))}
-      {user && (
-        <button className={`sidebar-item${view==="liked"?" active":""}`} onClick={()=>setView("liked")}>
-          <div style={{ width:32, height:32, borderRadius:3, background:"linear-gradient(135deg,#7c1a2a,#e8435a)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ico.Heart filled /></div>
-          <span style={{ fontSize:13 }}>Liked Songs</span>
-        </button>
-      )}
-      {userPlaylists?.map((pl) => (
-        <button key={pl.id} className="sidebar-item" onClick={()=>onSelectPlaylist(pl)}>
-          <div style={{ width:32, height:32, borderRadius:3, background:"#1a1a24", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0, fontWeight:700 }}>M</div>
-          <span style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pl.name}</span>
-        </button>
-      ))}
-      <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 4px" }} />
-      <button className="sidebar-item" onClick={onOpenSettings}><Ico.Settings /><span>Settings</span></button>
-      {user && <button className="sidebar-item" onClick={onSignOut} style={{ color:"#e8435a" }}><Ico.LogOut /><span>Log out</span></button>}
-    </div>
-  );
-}
-
-function TopBar({ user, onShowAuth, onSignOut, onMenuOpen }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ height:60, background:"rgba(10,10,15,0.85)", backdropFilter:"blur(10px)", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 24px", flexShrink:0, borderBottom:"1px solid rgba(255,255,255,0.04)", position:"sticky", top:0, zIndex:100 }}>
-      {onMenuOpen && (
-        <button className="icon-btn" onClick={onMenuOpen} style={{ color:"#aaa" }}><Ico.Menu /></button>
-      )}
-      <div style={{ flex:1 }} />
-      {user ? (
-        <div style={{ position:"relative" }}>
-          <button onClick={()=>setOpen(!open)} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:500, padding:"5px 12px 5px 6px", cursor:"pointer", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700 }}>
-              {user.displayName?.[0]?.toUpperCase()||<Ico.User />}
-            </div>
-            {user.displayName?.split(" ")[0]||"Profile"}
-          </button>
-          {open && (
-            <div style={{ position:"absolute", top:"calc(100% + 8px)", right:0, background:"#1a1a24", borderRadius:8, padding:6, minWidth:160, boxShadow:"0 8px 24px rgba(0,0,0,0.5)", zIndex:200 }}>
-              {["Log out"].map((label) => (
-                <button key={label} onClick={()=>{onSignOut();setOpen(false);}} style={{ width:"100%", background:"none", border:"none", color:"#e8e8e8", padding:"9px 12px", borderRadius:4, cursor:"pointer", fontSize:14, textAlign:"left", fontFamily:"inherit" }}
-                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
-                  onMouseLeave={e=>e.currentTarget.style.background="none"}>{label}</button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div style={{ display:"flex", gap:8 }}>
-          <button className="btn-outline" onClick={onShowAuth} style={{ padding:"7px 20px", fontSize:13 }}>Log in</button>
-          <button className="btn-primary" onClick={onShowAuth} style={{ padding:"7px 20px", fontSize:13 }}>Sign up</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MobileNav({ view, setView }) {
-  const items = [
-    { id:"home", label:"Home", Icon:Ico.Home },
-    { id:"search", label:"Search", Icon:Ico.Search },
-    { id:"library", label:"Library", Icon:Ico.Library },
-  ];
-  return (
-    <div style={{ position:"fixed", bottom:0, left:0, right:0, height:56, background:"#0d0d14", borderTop:"1px solid rgba(255,255,255,0.06)", display:"flex", zIndex:300 }}>
-      {items.map(({id,label,Icon})=>(
-        <button key={id} onClick={()=>setView(id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, background:"none", border:"none", cursor:"pointer", color:view===id?"#e8435a":"#888", fontSize:10, fontWeight:600, fontFamily:"inherit", transition:"color .15s" }}>
-          <Icon filled={view===id} /><span>{label}</span>
-        </button>
-      ))}
     </div>
   );
 }

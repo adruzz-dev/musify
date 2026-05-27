@@ -321,6 +321,57 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings, onEqChange
   };
 }
 
+// ✅ FIXED: SongRow component added
+function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
+  const duration = useSongDuration(song.audioUrl);
+  return (
+    <div className={`song-row${isActive ? " active" : ""}`} onClick={onPlay}>
+      <div className="num">
+        {isActive && isPlaying ? (
+          <span style={{ color: "#e8435a" }}>▶</span>
+        ) : (
+          index + 1
+        )}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 600,
+            color: isActive ? "#e8435a" : "#f0f0f0",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+          }}>
+            {song.title}
+          </div>
+          <div style={{
+            fontSize: 12, color: "#888",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+          }}>
+            {song.artist}
+          </div>
+        </div>
+      </div>
+      <div className="album-col" style={{
+        fontSize: 13, color: "#888",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+      }}>
+        {song.album}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+        <button
+          className={`icon-btn${liked ? " active" : ""}`}
+          onClick={(e) => { e.stopPropagation(); onLike(); }}
+        >
+          <Ico.Heart filled={liked} />
+        </button>
+        <span style={{ fontSize: 12, color: "#888", fontVariantNumeric: "tabular-nums", minWidth: 36, textAlign: "right" }}>
+          {formatTime(duration)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle, onExpand }) {
   const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
   const safeProgress = progress && isFinite(progress) ? progress : 0;

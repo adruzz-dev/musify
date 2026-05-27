@@ -11,16 +11,17 @@ import {
 import { getStorage } from "firebase/storage";
 import AdminPanel from "./AdminPanel";
 
-// TODO: For production, move these to a .env file (e.g., import.meta.env.VITE_FIREBASE_API_KEY)
+// Your brand-new Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDUZ3YuWky2VP-gN2PyrARig21qJquzc68",
-  authDomain: "musify-39617.firebaseapp.com",
-  projectId: "musify-39617",
-  storageBucket: "musify-39617.firebasestorage.app",
-  messagingSenderId: "926623581276",
-  appId: "1:926623581276:web:d5ae4301224b1506ab1299",
-  measurementId: "G-VLPDWD4CTL",
+  apiKey: "AIzaSyChXUcH4fVCM8db2lA7OlrcYGQYXQP-2q0",
+  authDomain: "musify-new-348db.firebaseapp.com",
+  projectId: "musify-new-348db",
+  storageBucket: "musify-new-348db.firebasestorage.app",
+  messagingSenderId: "547789616528",
+  appId: "1:547789616528:web:5cf41596300d6dfa93ef15",
+  measurementId: "G-PFQQE1K6HD"
 };
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -31,7 +32,7 @@ const SONGS = [
   { id: "1", title: "Vaishakha Sandhye", artist: "KJ Yesudas", album: "Nadodikkattu", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779531012/Vaisakha_Sandhye_HD_Video_Song_Mohanlal_Shobana_-_Nadodikkattu_-_Saina_Music_youtube_u2fvmk.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779530849/images_p3p8bd.jpg" },
   { id: "2", title: "Jeevamshamayi", artist: "K S Harishankar & Shreya Ghoshal", album: "Theevandi", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779556908/Theevandi___Jeevamshamayi___Video_Song___August_Cinema___Kailas_Menon___Shreya_Ghoshal___Harisankar_DInfmi-YIiw_hogqum.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/images_wy9ybz.jpg" },
   { id: "3", title: "Aaradhikee", artist: "Madhuvanthi Narayan, Sooraj Santhosh", album: "Aaradhike", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557126/Aaradhike_Video_Song___Soubin_Shahir___E4_Entertainment___Johnpaul_George_dAezp422I_A_enjry4.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779561178/images_2_fuqfh9.jpg" },
-  { id: "4", title: "Malare", artist: "Rajesh Murugesan, Vijay Yesudas", album: "Premam", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557149/Premam_Malare_Video_Song_Rajesh_Murugesan_Vijay_Yesudas_Nivin_Pauly_Sai_Pallavi_-_Anwar_Rasheed_Entertainment_Official_youtube_iplxn3.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_4_opydxc.jpg" },
+  { id: "4", title: "Malare", artist: "Rajesh Murugesan, Vijay Yesudas", album: "Premam", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557149/Premam_Malare_Video_Song_Rajesh_Murugesan_Vijay_Yesudas_Nivin_Pauly_Sai_Pallavi_-_Anwar_Rasheed_Entertainment_Official_youtube_iplxn3.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/images_4_opydxc.jpg" },
   { id: "5", title: "Uyiril Thodum", artist: "Sushin Shyam, Sooraj Santhosh, Anne Amie", album: "Kumbalangi Nights", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557117/%E0%B4%89%E0%B4%AF%E0%B4%BF%E0%B4%B0%E0%B4%BF%E0%B5%BD_%E0%B4%A4%E0%B5%8A%E0%B4%9F%E0%B5%81%E0%B4%82_Uyiril_Thodum_-_Kumbalangi_Nights_Official_Video_Song___Sooraj_Santhosh___Anne_Amie_ZKhOs_Pc_7s_tyqluu.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg" },
   { id: "6", title: "Darshana", artist: "Vineeth Sreenivasan", album: "Hridayam", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557122/Darshana_-_Official_Video_Song___Hridayam___Pranav___Darshana___Vineeth___Hesham___Merryland_epAFDEJImrU_hsyy47.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/ab67616d00001e029b8c8ab6e0a59493a5fa06c6_pi7ztc.jpg" },
   { id: "7", title: "Pavizha Mazha", artist: "K.S. Harisankar", album: "Athiran", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg" },
@@ -95,7 +96,7 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
   const gainRef = useRef(null);
-  const eqBandsRef = useRef([]); // Equalizer bands reference
+  const eqBandsRef = useRef([]); 
   const sleepTimerRef = useRef(null);
   const unlockedRef = useRef(false);
   const [progress, setProgress] = useState(0);
@@ -105,7 +106,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
 
   useEffect(() => { settingsRef.current = playbackSettings; }, [playbackSettings]);
 
-  // Apply EQ Preset changes
   useEffect(() => {
     const preset = EQ_PRESETS[playbackSettings?.eqPreset || "Normal"] || EQ_PRESETS.Normal;
     if (eqBandsRef.current.length && audioCtxRef.current) {
@@ -125,8 +125,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
     a.addEventListener("pause", () => onPlayStateChange?.(false));
     a.addEventListener("timeupdate", () => {
       setProgress(a.currentTime);
-      const s = settingsRef.current;
-      if (s?.sleepTimer > 0) { /* handled by setTimeout */ }
     });
     a.addEventListener("loadedmetadata", () => setDuration(a.duration));
   
@@ -146,7 +144,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
       gainRef.current = gain;
       gain.gain.value = volume;
 
-      // Equalizer setup: 5-band (60Hz, 230Hz, 910Hz, 3.6kHz, 14kHz)
       const frequencies = [60, 230, 910, 3600, 14000];
       let prevNode = gain;
       const eqNodes = frequencies.map(freq => {
@@ -161,7 +158,6 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
       });
       eqBandsRef.current = eqNodes;
 
-      // Connect the chain: source -> gain -> EQ -> speakers
       src.connect(gain);
       prevNode.connect(ctx.destination);
     } catch(e) { console.warn("WebAudio failed:", e); }
@@ -368,12 +364,9 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
 
   return (
     <div className="slide-in" style={{ position: "fixed", inset: 0, zIndex: 999, background: "#111", display: "flex", flexDirection: "column", color: "#fff", overflow: "hidden" }}>
-      {/* Heavy Blurred Background */}
       <div style={{ position: "absolute", inset: -40, backgroundImage: `url(${track?.cover})`, backgroundSize: "cover", backgroundPosition: "center", filter: "blur(40px) brightness(0.35)", zIndex: 0 }} />
 
       <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", padding: "24px 24px 40px" }}>
-        
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 30 }}>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", padding: 0 }}><Ico.ChevronDown /></button>
           <div style={{ textAlign: "center", fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,0.7)" }}>
@@ -382,23 +375,20 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
           <button onClick={onOpenSettings} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", padding: 0 }}><Ico.MoreVertical /></button>
         </div>
 
-        {/* Large Artwork */}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: 30 }}>
           <img src={track?.cover} alt={track?.title} style={{ width: "100%", maxWidth: 360, aspectRatio: "1/1", objectFit: "cover", borderRadius: 8, boxShadow: "0 16px 40px rgba(0,0,0,0.6)" }} />
         </div>
 
-        {/* Song Details & Actions */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
           <div style={{ minWidth: 0, flex: 1, paddingRight: 16 }}>
             <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.title}</h2>
             <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.artist}</p>
           </div>
-          <button onClick={onLike} style={{ background:"none", border:"none", color: liked ? "#1ed760" : "#fff", padding: 8, cursor:"pointer" }}>
-            {liked ? <Ico.Heart filled={true} /> : <Ico.Plus />}
+          <button onClick={onLike} style={{ background:"none", border:"none", color: liked ? "#e8435a" : "#fff", padding: 8, cursor:"pointer" }}>
+            <Ico.Heart filled={liked} />
           </button>
         </div>
 
-        {/* Seek Bar */}
         <div style={{ marginBottom: 20 }}>
           <SeekBar progress={safeProgress} duration={safeDuration} onSeek={onSeek} style={{ height: 4, background: "rgba(255,255,255,0.2)" }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.6)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
@@ -407,9 +397,8 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
           </div>
         </div>
 
-        {/* Playback Controls */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <button onClick={onShuffleToggle} style={{ background:"none", border:"none", color: shuffle ? "#1ed760" : "rgba(255,255,255,0.7)", cursor:"pointer" }}><Ico.Shuffle /></button>
+          <button onClick={onShuffleToggle} style={{ background:"none", border:"none", color: shuffle ? "#e8435a" : "rgba(255,255,255,0.7)", cursor:"pointer" }}><Ico.Shuffle /></button>
           <button onClick={onPrev} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", transform: "scale(1.5)" }}><Ico.Prev /></button>
           
           <button onClick={onToggle} style={{ width: 68, height: 68, borderRadius: "50%", background: "#fff", color: "#000", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor:"pointer" }}>
@@ -419,12 +408,11 @@ function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSe
           </button>
           
           <button onClick={onNext} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", transform: "scale(1.5)" }}><Ico.Next /></button>
-          <button onClick={onRepeatToggle} style={{ background:"none", border:"none", color: repeat !== "off" ? "#1ed760" : "rgba(255,255,255,0.7)", cursor:"pointer" }}>
+          <button onClick={onRepeatToggle} style={{ background:"none", border:"none", color: repeat !== "off" ? "#e8435a" : "rgba(255,255,255,0.7)", cursor:"pointer" }}>
             {repeat === "one" ? <Ico.RepeatOne /> : <Ico.Repeat />}
           </button>
         </div>
 
-        {/* Bottom Accessories (Cast, Share, Queue) */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, color: "rgba(255,255,255,0.7)" }}>
           <button style={{ background:"none", border:"none", color:"inherit", cursor:"pointer" }}><Ico.Cast /></button>
           <div style={{ display: "flex", gap: 24 }}>
@@ -515,7 +503,6 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
         {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
         {row("High Quality Audio", "Stream at highest quality (uses more data)", "hqAudio")}
 
-        {/* Sleep Timer */}
         <div style={{ padding:"14px 0" }}>
           <div style={{ fontSize:14, fontWeight:600, color:"#f0f0f0", marginBottom:6 }}>Sleep Timer</div>
           <div style={{ fontSize:12, color:"#777", marginBottom:12 }}>Automatically pause after a set time</div>
@@ -539,7 +526,6 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
     <>
       <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:400 }} onClick={onClose} />
       <div className="slide-in" style={{ position:"fixed", top:0, left:0, bottom:0, width:280, background:"#0d0d14", zIndex:401, display:"flex", flexDirection:"column", overflowY:"auto", padding:"0 8px 24px" }}>
-        {/* Header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 12px 16px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700 }}>M</div>
@@ -548,7 +534,6 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
           <button className="icon-btn" onClick={onClose}><Ico.X /></button>
         </div>
 
-        {/* User */}
         {user ? (
           <div style={{ margin:"0 8px 16px", background:"rgba(255,255,255,0.05)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:10 }}>
             <div style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 }}>
@@ -566,7 +551,6 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
           </div>
         )}
 
-        {/* Nav */}
         <button className={`sidebar-item${view==="home"?" active":""}`} onClick={()=>{setView("home");onClose();}}>
           <Ico.Home filled={view==="home"} /><span>Home</span>
         </button>
@@ -579,7 +563,6 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
 
         <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
 
-        {/* Playlists */}
         <div style={{ padding:"4px 14px 8px", fontSize:11, fontWeight:700, color:"#666", textTransform:"uppercase", letterSpacing:".8px" }}>Playlists</div>
         {resolvePlaylists().map((pl) => (
           <button key={pl.id} className="sidebar-item" onClick={()=>{onSelectPlaylist(pl);onClose();}}>
@@ -897,7 +880,7 @@ function TopBar({ user, onShowAuth, onSignOut, onMenuOpen }) {
       <div style={{ flex:1 }} />
       {user ? (
         <div style={{ position:"relative" }}>
-          <button onClick={()=>setOpen(!open)} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:500, padding:"5px 12px 5px 6px", cursor:"pointer", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
+          <button onClick={()=>setOpen(!open)} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", borderRadius0:500, padding:"5px 12px 5px 6px", cursor:"pointer", color:"#fff", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>
             <div style={{ width:28, height:28, borderRadius:"50%", background:"#e8435a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700 }}>
               {user.displayName?.[0]?.toUpperCase()||<Ico.User />}
             </div>
@@ -947,7 +930,7 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(false);
-  const [fullPlayerOpen, setFullPlayerOpen] = useState(false); // Mobile full screen player state
+  const [fullPlayerOpen, setFullPlayerOpen] = useState(false); 
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -957,7 +940,6 @@ export default function App() {
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState("off");
   
-  // Added eqPreset to state
   const [pbSettings, setPbSettings] = useState({ shuffle:false, repeat:"off", crossfade:false, normalize:false, hqAudio:false, sleepTimer:0, eqPreset: "Normal" });
 
   const likedSongs = userData?.likedSongs || [];

@@ -21,7 +21,6 @@ const firebaseConfig = {
   appId: "1:926623581276:web:d5ae4301224b1506ab1299",
   measurementId: "G-VLPDWD4CTL",
 };
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -35,20 +34,22 @@ const SONGS = [
   { id: "4", title: "Malare", artist: "Rajesh Murugesan, Vijay Yesudas", album: "Premam", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557149/Premam_Malare_Video_Song_Rajesh_Murugesan_Vijay_Yesudas_Nivin_Pauly_Sai_Pallavi_-_Anwar_Rasheed_Entertainment_Official_youtube_iplxn3.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_4_opydxc.jpg" },
   { id: "5", title: "Uyiril Thodum", artist: "Sushin Shyam, Sooraj Santhosh, Anne Amie", album: "Kumbalangi Nights", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557117/%E0%B4%89%E0%B4%AF%E0%B4%BF%E0%B4%B0%E0%B4%BF%E0%B5%BD_%E0%B4%A4%E0%B5%8A%E0%B4%9F%E0%B5%81%E0%B4%82_Uyiril_Thodum_-_Kumbalangi_Nights_Official_Video_Song___Sooraj_Santhosh___Anne_Amie_ZKhOs_Pc_7s_tyqluu.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_3_pwgkgc.jpg" },
   { id: "6", title: "Darshana", artist: "Vineeth Sreenivasan", album: "Hridayam", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557122/Darshana_-_Official_Video_Song___Hridayam___Pranav___Darshana___Vineeth___Hesham___Merryland_epAFDEJImrU_hsyy47.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557549/ab67616d00001e029b8c8ab6e0a59493a5fa06c6_pi7ztc.jpg" },
-  { id: "7", title: "Pavizha Mazha", artist: "K. S. Harisankar", album: "Athiran", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg" },
-  {
-    id: "381104drf",
-    title: "KAATTUCHEMBAKAM",
-    artist: "JAKES BEJOY",
-    album: "Pallichattambi",
-    audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779856994/Pallichattambi_-_Kaattuchembakam_Video_Song__Tovino_Kayadu___Dijo_Jose__Jakes_Bejoy___Vishal_Mishra_kzpS-A3QJqE_wbzskr.mp3",
-    cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779857197/Kaattuchembakam-From-Pallichattambi-Malayalam-2026-20260212181402-500x500_1_j4dpbx.jpg",
-  },
+  { id: "7", title: "Pavizha Mazha", artist: "K.S. Harisankar", album: "Athiran", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779557116/Pavizha_Mazha___Athiran___Video___Fahad_Faasil___Sai_Pallavi___Vivek___K_S_Harisankar___P_S_Jayhari_P-jKtzUuVcM_z8j9j6.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779557550/images_1_qkeze0.jpg" },
+  { id: "381104drf", title: "KAATTUCHEMBAKAM", artist: "JAKES BEJOY", album: "Pallichattambi", audioUrl: "https://res.cloudinary.com/dasnicvlp/video/upload/q_auto/f_auto/v1779856994/Pallichattambi_-_Kaattuchembakam_Video_Song__Tovino_Kayadu___Dijo_Jose__Jakes_Bejoy___Vishal_Mishra_kzpS-A3QJqE_wbzskr.mp3", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779857197/Kaattuchembakam-From-Pallichattambi-Malayalam-2026-20260212181402-500x500_1_j4dpbx.jpg" },
 ].filter((s) => s.id && s.title && s.audioUrl);
 
 const PLAYLISTS = [
   { id: "pl-1", name: "Malayalam Melodies", cover: "https://res.cloudinary.com/dasnicvlp/image/upload/q_auto/f_auto/v1779449356/artworks-X7VgPpOQzk6r1htx-1zjCOA-t500x500_fhil3r.jpg", songIds: ["1","2","3","4","5","6","7"] },
 ];
+
+const EQ_PRESETS = {
+  Normal: [0, 0, 0, 0, 0],
+  Rock: [5, 4, -2, 3, 5],
+  Pop: [-2, 2, 5, 3, -1],
+  Jazz: [3, 2, -2, 2, 4],
+  Classical: [4, 3, -2, 2, 3],
+  BassBoost: [6, 4, 0, 0, 0],
+};
 
 function resolvePlaylists() {
   return PLAYLISTS.map((pl) => ({ ...pl, songs: pl.songIds.map((sid) => SONGS.find((s) => s.id === sid)).filter(Boolean) }));
@@ -74,7 +75,6 @@ function useIsMobile() {
 function getGreeting() { const h = new Date().getHours(); if(h<12) return "Good morning"; if(h<17) return "Good afternoon"; return "Good evening"; }
 function generateId() { return `pl-${Date.now()}-${Math.random().toString(36).slice(2,6)}`; }
 
-// Song duration cache
 const durationCache = {};
 function useSongDuration(audioUrl) {
   const [dur, setDur] = useState(durationCache[audioUrl] || 0);
@@ -95,13 +95,25 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
   const audioRef = useRef(null);
   const audioCtxRef = useRef(null);
   const gainRef = useRef(null);
+  const eqBandsRef = useRef([]); // Equalizer bands reference
   const sleepTimerRef = useRef(null);
   const unlockedRef = useRef(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const settingsRef = useRef(playbackSettings);
+
   useEffect(() => { settingsRef.current = playbackSettings; }, [playbackSettings]);
+
+  // Apply EQ Preset changes
+  useEffect(() => {
+    const preset = EQ_PRESETS[playbackSettings?.eqPreset || "Normal"] || EQ_PRESETS.Normal;
+    if (eqBandsRef.current.length && audioCtxRef.current) {
+      eqBandsRef.current.forEach((filter, i) => {
+        filter.gain.setTargetAtTime(preset[i], audioCtxRef.current.currentTime, 0.1);
+      });
+    }
+  }, [playbackSettings?.eqPreset]);
 
   useEffect(() => {
     const a = new Audio();
@@ -133,10 +145,27 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
       const gain = ctx.createGain();
       gainRef.current = gain;
       gain.gain.value = volume;
+
+      // Equalizer setup: 5-band (60Hz, 230Hz, 910Hz, 3.6kHz, 14kHz)
+      const frequencies = [60, 230, 910, 3600, 14000];
+      let prevNode = gain;
+      const eqNodes = frequencies.map(freq => {
+        const filter = ctx.createBiquadFilter();
+        filter.type = "peaking";
+        filter.frequency.value = freq;
+        filter.Q.value = 1.0;
+        filter.gain.value = 0; 
+        prevNode.connect(filter);
+        prevNode = filter;
+        return filter;
+      });
+      eqBandsRef.current = eqNodes;
+
+      // Connect the chain: source -> gain -> EQ -> speakers
       src.connect(gain);
-      gain.connect(ctx.destination);
+      prevNode.connect(ctx.destination);
     } catch(e) { console.warn("WebAudio failed:", e); }
-  }, []);
+  }, [volume]);
 
   const load = useCallback((url) => {
     const a = audioRef.current;
@@ -156,14 +185,10 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
     progress, duration,
     volume: Math.round(volume * 100),
     load,
-    play: () => { const a = audioRef.current;
-    if(!a) return; if(audioCtxRef.current?.state==="suspended") audioCtxRef.current.resume(); a.play().catch(()=>{}); },
+    play: () => { const a = audioRef.current; if(!a) return; if(audioCtxRef.current?.state==="suspended") audioCtxRef.current.resume(); a.play().catch(()=>{}); },
     pause: () => audioRef.current?.pause(),
-    seek: (r) => { const a = audioRef.current;
-    if(!a) return; const d = a.duration; if(d && isFinite(d) && d>0) a.currentTime = r*d;
-    },
-    setVol: (v) => { const val = v/100; setVolume(val); if(audioRef.current) audioRef.current.volume=val; if(gainRef.current) gainRef.current.gain.value=val;
-    },
+    seek: (r) => { const a = audioRef.current; if(!a) return; const d = a.duration; if(d && isFinite(d) && d>0) a.currentTime = r*d; },
+    setVol: (v) => { const val = v/100; setVolume(val); if(audioRef.current) audioRef.current.volume=val; if(gainRef.current) gainRef.current.gain.value=val; },
     setSleepTimer,
   };
 }
@@ -171,8 +196,7 @@ function useAudioPlayer(onEnded, onPlayStateChange, playbackSettings) {
 function CoverArt({ cover, size=48, title, radius=6 }) {
   const initials = title?.split(" ").map((w)=>w[0]).join("").slice(0,2).toUpperCase() || "M";
   const sz = typeof size==="number" ? size : "100%";
-  return cover ?
-  (
+  return cover ? (
     <img src={cover} alt={title} style={{ width:sz, height:sz, borderRadius:radius, objectFit:"cover", flexShrink:0, display:"block" }} />
   ) : (
     <div style={{ width:sz, height:sz, borderRadius:radius, flexShrink:0, background:"linear-gradient(135deg,#e8435a 0%,#7c1a2a 100%)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:typeof size==="number"?Math.max(10,size*0.28):14, fontWeight:800, color:"rgba(255,255,255,0.9)" }}>
@@ -202,6 +226,11 @@ const Ico = {
   User: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>,
   Google: () => <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>,
   Clock: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  ChevronDown: () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>,
+  MoreVertical: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>,
+  Share: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
+  Cast: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg>,
+  List: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
 };
 
 const GlobalStyles = () => (
@@ -241,8 +270,8 @@ const GlobalStyles = () => (
     .toggle-thumb { width:18px; height:18px; background:#fff; border-radius:50%; position:absolute; top:3px; transition:left .2s; box-shadow:0 1px 3px rgba(0,0,0,0.4); }
     @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
     .fade-in { animation:fadeIn .25s ease; }
-    @keyframes slideIn { from{transform:translateX(-100%)} to{transform:translateX(0)} }
-    .slide-in { animation:slideIn .25s ease; }
+    @keyframes slideIn { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .slide-in { animation:slideIn .3s cubic-bezier(0.2, 0.8, 0.2, 1); }
     @media (max-width:768px) { .song-row { grid-template-columns:28px 1fr 52px; } .song-row .album-col { display:none; } }
   `}</style>
 );
@@ -267,28 +296,26 @@ function Toggle({ value, onChange }) {
   );
 }
 
-function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle }) {
+function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, volume, onVolume, liked, onLike, isMobile, shuffle, repeat, onShuffleToggle, onRepeatToggle, onExpand }) {
   const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
   const safeProgress = progress && isFinite(progress) ? progress : 0;
+  
   if (isMobile) {
     return (
-      <div style={{ position:"fixed", bottom:56, left:0, right:0, background:"#111118", borderTop:"1px solid rgba(255,255,255,0.06)", padding:"10px 16px", zIndex:200 }}>
+      <div onClick={onExpand} style={{ position:"fixed", bottom:56, left:0, right:0, background:"#111118", borderTop:"1px solid rgba(255,255,255,0.06)", padding:"10px 16px", zIndex:200, cursor: "pointer" }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
           <span style={{ color:"#888", fontSize:11, minWidth:32, textAlign:"right", fontVariantNumeric:"tabular-nums" }}>{formatTime(safeProgress)}</span>
           <SeekBar progress={safeProgress} duration={safeDuration} onSeek={onSeek} style={{ flex:1 }} />
           <span style={{ color:"#888", fontSize:11, minWidth:32, fontVariantNumeric:"tabular-nums" }}>{formatTime(safeDuration)}</span>
         </div>
-  
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <CoverArt cover={track?.cover} size={40} title={track?.title} radius={4} />
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ color:"#f0f0f0", fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.title ?? "-"}</div>
             <div style={{ color:"#888", fontSize:11, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{track?.artist ?? ""}</div>
           </div>
-          <button className={`icon-btn${liked?" active":""}`} onClick={onLike}><Ico.Heart filled={liked} /></button>
-          
-          {/* Removed Prev and Next buttons here for mobile to give the title text more room */}
-          <button onClick={onToggle} style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", border:"none", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <button className={`icon-btn${liked?" active":""}`} onClick={(e) => { e.stopPropagation(); onLike(); }}><Ico.Heart filled={liked} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onToggle(); }} style={{ width:36, height:36, borderRadius:"50%", background:"#e8435a", border:"none", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
             {isPlaying ? <Ico.Pause /> : <Ico.Play />}
           </button>
         </div>
@@ -324,12 +351,86 @@ function PlayerBar({ track, isPlaying, onToggle, progress, duration, onSeek, onN
           <SeekBar progress={safeProgress} duration={safeDuration} onSeek={onSeek} style={{ flex:1 }} />
           <span style={{ color:"#888", fontSize:11, minWidth:36, fontVariantNumeric:"tabular-nums" }}>{formatTime(safeDuration)}</span>
         </div>
-      
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"flex-end" }}>
         <button className="icon-btn"><Ico.Volume /></button>
         <div className="volume-bar" onClick={(e)=>{ const r=e.currentTarget.getBoundingClientRect(); onVolume(Math.round(((e.clientX-r.left)/r.width)*100)); }}>
           <div className="volume-fill" style={{ width:`${volume}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FullScreenPlayer({ track, isPlaying, onToggle, progress, duration, onSeek, onNext, onPrev, shuffle, repeat, onShuffleToggle, onRepeatToggle, liked, onLike, onClose, onOpenSettings }) {
+  const safeDuration = duration && isFinite(duration) && duration > 0 ? duration : 0;
+  const safeProgress = progress && isFinite(progress) ? progress : 0;
+
+  return (
+    <div className="slide-in" style={{ position: "fixed", inset: 0, zIndex: 999, background: "#111", display: "flex", flexDirection: "column", color: "#fff", overflow: "hidden" }}>
+      {/* Heavy Blurred Background */}
+      <div style={{ position: "absolute", inset: -40, backgroundImage: `url(${track?.cover})`, backgroundSize: "cover", backgroundPosition: "center", filter: "blur(40px) brightness(0.35)", zIndex: 0 }} />
+
+      <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", padding: "24px 24px 40px" }}>
+        
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 30 }}>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", padding: 0 }}><Ico.ChevronDown /></button>
+          <div style={{ textAlign: "center", fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,0.7)" }}>
+            PLAYING FROM PLAYLIST<br/><span style={{ color:"#fff", fontSize: 13, letterSpacing: 0, marginTop: 4, display: "block" }}>{track?.album || "Library"}</span>
+          </div>
+          <button onClick={onOpenSettings} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", padding: 0 }}><Ico.MoreVertical /></button>
+        </div>
+
+        {/* Large Artwork */}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", paddingBottom: 30 }}>
+          <img src={track?.cover} alt={track?.title} style={{ width: "100%", maxWidth: 360, aspectRatio: "1/1", objectFit: "cover", borderRadius: 8, boxShadow: "0 16px 40px rgba(0,0,0,0.6)" }} />
+        </div>
+
+        {/* Song Details & Actions */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+          <div style={{ minWidth: 0, flex: 1, paddingRight: 16 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.title}</h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.7)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track?.artist}</p>
+          </div>
+          <button onClick={onLike} style={{ background:"none", border:"none", color: liked ? "#1ed760" : "#fff", padding: 8, cursor:"pointer" }}>
+            {liked ? <Ico.Heart filled={true} /> : <Ico.Plus />}
+          </button>
+        </div>
+
+        {/* Seek Bar */}
+        <div style={{ marginBottom: 20 }}>
+          <SeekBar progress={safeProgress} duration={safeDuration} onSeek={onSeek} style={{ height: 4, background: "rgba(255,255,255,0.2)" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.6)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
+            <span>{formatTime(safeProgress)}</span>
+            <span>{formatTime(safeDuration)}</span>
+          </div>
+        </div>
+
+        {/* Playback Controls */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <button onClick={onShuffleToggle} style={{ background:"none", border:"none", color: shuffle ? "#1ed760" : "rgba(255,255,255,0.7)", cursor:"pointer" }}><Ico.Shuffle /></button>
+          <button onClick={onPrev} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", transform: "scale(1.5)" }}><Ico.Prev /></button>
+          
+          <button onClick={onToggle} style={{ width: 68, height: 68, borderRadius: "50%", background: "#fff", color: "#000", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor:"pointer" }}>
+            <div style={{ transform: "scale(1.6)", display:"flex" }}>
+              {isPlaying ? <Ico.Pause /> : <Ico.Play />}
+            </div>
+          </button>
+          
+          <button onClick={onNext} style={{ background:"none", border:"none", color:"#fff", cursor:"pointer", transform: "scale(1.5)" }}><Ico.Next /></button>
+          <button onClick={onRepeatToggle} style={{ background:"none", border:"none", color: repeat !== "off" ? "#1ed760" : "rgba(255,255,255,0.7)", cursor:"pointer" }}>
+            {repeat === "one" ? <Ico.RepeatOne /> : <Ico.Repeat />}
+          </button>
+        </div>
+
+        {/* Bottom Accessories (Cast, Share, Queue) */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, color: "rgba(255,255,255,0.7)" }}>
+          <button style={{ background:"none", border:"none", color:"inherit", cursor:"pointer" }}><Ico.Cast /></button>
+          <div style={{ display: "flex", gap: 24 }}>
+            <button style={{ background:"none", border:"none", color:"inherit", cursor:"pointer" }}><Ico.Share /></button>
+            <button style={{ background:"none", border:"none", color:"inherit", cursor:"pointer" }}><Ico.List /></button>
+          </div>
         </div>
       </div>
     </div>
@@ -348,8 +449,7 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
           <button onClick={onPlay} style={{ background:"none", border:"none", cursor:"pointer", color:isActive?"#e8435a":"#fff", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}>
             {isActive&&isPlaying ? <Ico.Pause /> : <Ico.Play />}
           </button>
-        ) : 
-        isActive ? <span style={{color:"#e8435a"}}>{">"}</span> : <span>{index+1}</span>}
+        ) : isActive ? <span style={{color:"#e8435a"}}>{">"}</span> : <span>{index+1}</span>}
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
         <CoverArt cover={song.cover} size={40} title={song.title} radius={4} />
@@ -358,7 +458,6 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
           <div style={{ fontSize:12, color:"#888", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.artist}</div>
         </div>
       </div>
-    
       <div className="album-col" style={{ fontSize:13, color:"#777", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{song.album}</div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:6 }}>
         <button className={`icon-btn${liked?" active":""}`} onClick={(e)=>{e.stopPropagation();onLike();}} style={{ opacity:hovered||liked?1:0, transition:"opacity .15s" }}>
@@ -374,7 +473,6 @@ function SongRow({ song, index, isActive, isPlaying, onPlay, liked, onLike }) {
   );
 }
 
-// ââ PLAYBACK SETTINGS PANEL ââââââââââââââââââââââââââââââââââââââââââââââââââ
 function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   const [sleepMin, setSleepMin] = useState(0);
   const row = (label, desc, key, type="toggle", options=null) => (
@@ -393,7 +491,7 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
     </div>
   );
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:600, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:1000, display:"flex", alignItems:"flex-end" }} onClick={onClose}>
       <div className="fade-in" style={{ width:"100%", maxWidth:480, margin:"0 auto", background:"#111118", borderRadius:"16px 16px 0 0", padding:"24px 24px 40px", maxHeight:"80vh", overflowY:"auto" }}
         onClick={e=>e.stopPropagation()}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
@@ -404,6 +502,14 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
         {row("Shuffle", "Play songs in random order", "shuffle")}
         {row("Repeat", "Loop playback mode", "repeat", "select", [
           {value:"off",label:"Off"},{value:"all",label:"Repeat All"},{value:"one",label:"Repeat One"}
+        ])}
+        {row("Equalizer Preset", "Adjust audio frequencies", "eqPreset", "select", [
+          {value:"Normal",label:"Normal"},
+          {value:"Rock",label:"Rock"},
+          {value:"Pop",label:"Pop"},
+          {value:"Jazz",label:"Jazz"},
+          {value:"Classical",label:"Classical"},
+          {value:"BassBoost",label:"Bass Boost"}
         ])}
         {row("Crossfade", "Smooth transition between songs", "crossfade", "toggle")}
         {row("Normalize Volume", "Keep volume consistent across songs", "normalize")}
@@ -427,7 +533,6 @@ function PlaybackSettings({ settings, onChange, onSleepTimer, onClose }) {
   );
 }
 
-// ââ MOBILE SIDEBAR DRAWER ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onShowAuth, onSignOut, onOpenSettings }) {
   if (!open) return null;
   return (
@@ -505,7 +610,6 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
 
         <div style={{ height:1, background:"rgba(255,255,255,0.06)", margin:"10px 8px" }} />
 
-        {/* Settings */}
         <button className="sidebar-item" onClick={()=>{onOpenSettings();onClose();}}>
           <Ico.Settings /><span>Settings</span>
         </button>
@@ -519,7 +623,6 @@ function MobileSidebar({ open, onClose, view, setView, user, userPlaylists, onCr
   );
 }
 
-// ââ DESKTOP SIDEBAR ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function Sidebar({ view, setView, user, userPlaylists, onCreatePlaylist, onSelectPlaylist, onSignOut, onOpenSettings }) {
   return (
     <div style={{ width:240, background:"#0a0a0f", display:"flex", flexDirection:"column", gap:2, padding:"16px 8px", overflowY:"auto", flexShrink:0, borderRight:"1px solid rgba(255,255,255,0.04)" }}>
@@ -724,8 +827,7 @@ function AuthView({ onClose }) {
   const [err, setErr] = useState(""), [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    setErr("");
-    setLoading(true);
+    setErr(""); setLoading(true);
     try {
       if (mode==="login") { await signInWithEmailAndPassword(auth,email,pass); }
       else {
@@ -749,7 +851,6 @@ function AuthView({ onClose }) {
     } catch(e) { setErr(e.message); }
     setLoading(false);
   };
-
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:500, padding:20 }}>
       <div style={{ background:"#111118", borderRadius:14, padding:"36px 32px", width:"100%", maxWidth:400, position:"relative" }}>
@@ -846,6 +947,7 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(false);
+  const [fullPlayerOpen, setFullPlayerOpen] = useState(false); // Mobile full screen player state
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -854,7 +956,9 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState("off");
-  const [pbSettings, setPbSettings] = useState({ shuffle:false, repeat:"off", crossfade:false, normalize:false, hqAudio:false, sleepTimer:0 });
+  
+  // Added eqPreset to state
+  const [pbSettings, setPbSettings] = useState({ shuffle:false, repeat:"off", crossfade:false, normalize:false, hqAudio:false, sleepTimer:0, eqPreset: "Normal" });
 
   const likedSongs = userData?.likedSongs || [];
   const userPlaylists = userData?.playlists || [];
@@ -866,6 +970,7 @@ export default function App() {
     else if (repeat==="all") { setQueueIdx(0); setCurrentTrack(queue[0]); }
     else setIsPlaying(false);
   }, [repeat,queueIdx,queue]);
+
   const player = useAudioPlayer(handleEnded, setIsPlaying, pbSettings);
 
   useEffect(() => { if(currentTrack) player.load(currentTrack.audioUrl); }, [currentTrack]);
@@ -880,17 +985,17 @@ export default function App() {
     const newIdx = shuffle ? list.findIndex((s)=>s.id===song.id) : idx;
     setQueue(list); setQueueIdx(newIdx>=0?newIdx:0); setCurrentTrack(song);
   },[shuffle]);
+
   const togglePlay = () => { if(isPlaying) player.pause(); else player.play(); };
-  const goNext = () => { const n=queueIdx+1;
-  if(n<queue.length){setQueueIdx(n);setCurrentTrack(queue[n]);}else if(repeat==="all"){setQueueIdx(0);setCurrentTrack(queue[0]);} };
+  const goNext = () => { const n=queueIdx+1; if(n<queue.length){setQueueIdx(n);setCurrentTrack(queue[n]);}else if(repeat==="all"){setQueueIdx(0);setCurrentTrack(queue[0]);} };
   const goPrev = () => { if(player.progress>3){player.seek(0);return;} const p=queueIdx-1; if(p>=0){setQueueIdx(p);setCurrentTrack(queue[p]);} };
   const toggleLike = async(songId)=>{ if(!user){setShowAuth(true);return;} const updated=likedSongs.includes(songId)?likedSongs.filter((id)=>id!==songId):[...likedSongs,songId]; setUserData((prev)=>({...prev,likedSongs:updated})); await saveUserLiked(user.uid,updated); };
-  const handleCreatePlaylist = async()=>{ if(!user){setShowAuth(true);return;} const name=prompt("Playlist name:"); if(!name)return;
-  const pl={id:generateId(),name,songs:[],songIds:[]}; setUserData((prev)=>({...prev,playlists:[...(prev?.playlists||[]),pl]})); await saveUserPlaylist(user.uid,pl); };
+  
+  const handleCreatePlaylist = async()=>{ if(!user){setShowAuth(true);return;} const name=prompt("Playlist name:"); if(!name)return; const pl={id:generateId(),name,songs:[],songIds:[]}; setUserData((prev)=>({...prev,playlists:[...(prev?.playlists||[]),pl]})); await saveUserPlaylist(user.uid,pl); };
   const handleSelectPlaylist = (pl)=>{ setSelectedPlaylist(pl); setView("playlist"); };
-  const handleSignOut = async()=>{ await signOut(auth); setUser(null);
-  setUserData(null); };
+  const handleSignOut = async()=>{ await signOut(auth); setUser(null); setUserData(null); };
   const handlePbChange = (key,val)=>{ setPbSettings(prev=>({...prev,[key]:val})); if(key==="shuffle") setShuffle(val); if(key==="repeat") setRepeat(val); };
+
   const renderMain = () => {
     if(view==="admin") return <AdminPanel />;
     if(view==="playlist"&&selectedPlaylist) return <PlaylistView playlist={selectedPlaylist} currentTrack={currentTrack} isPlaying={isPlaying} onPlay={playSong} likedSongs={likedSongs} onLike={toggleLike} />;
@@ -942,7 +1047,23 @@ export default function App() {
         onLike={()=>currentTrack&&toggleLike(currentTrack.id)}
         isMobile={isMobile} shuffle={shuffle} repeat={repeat}
         onShuffleToggle={()=>setShuffle(s=>!s)}
-        onRepeatToggle={()=>setRepeat(r=>r==="off"?"all":r==="all"?"one":"off")} />
+        onRepeatToggle={()=>setRepeat(r=>r==="off"?"all":r==="all"?"one":"off")} 
+        onExpand={() => setFullPlayerOpen(true)}
+      />
+
+      {isMobile && fullPlayerOpen && (
+        <FullScreenPlayer 
+          track={currentTrack} isPlaying={isPlaying} onToggle={togglePlay}
+          progress={player.progress} duration={player.duration} onSeek={player.seek}
+          onNext={goNext} onPrev={goPrev} shuffle={shuffle} repeat={repeat}
+          onShuffleToggle={()=>setShuffle(s=>!s)}
+          onRepeatToggle={()=>setRepeat(r=>r==="off"?"all":r==="all"?"one":"off")}
+          liked={currentTrack?likedSongs.includes(currentTrack.id):false}
+          onLike={()=>currentTrack&&toggleLike(currentTrack.id)}
+          onClose={() => setFullPlayerOpen(false)}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+      )}
 
       {isMobile && <MobileNav view={view} setView={setView} />}
 
